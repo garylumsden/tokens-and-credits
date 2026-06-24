@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Tokens &amp; AI Credits — token + usage + credit breakdown</title>
+    <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+    <header class="app-header">
+        <div class="header-row">
+            <div>
+                <h1>AI Tokens &amp; AI Credits</h1>
+                <p class="subtitle">See exactly which part of your prompt is which token, where the tokens go, and what they'd cost in AI Credits.</p>
+            </div>
+            <button id="explainerOpen" class="ghost-button" type="button">&#9654; How tokenisation works</button>
+        </div>
+    </header>
+
+    <main class="layout">
+        <section class="controls card">
+            <div class="control-row">
+                <label for="model">Model</label>
+                <select id="model"></select>
+            </div>
+            <div id="badges" class="badges"></div>
+
+            <div class="control-row">
+                <label for="samplePrompt">Sample prompt</label>
+                <select id="samplePrompt">
+                    <option value="" selected>Load a sample prompt…</option>
+                </select>
+            </div>
+
+            <div class="control-row">
+                <label for="prompt">Prompt</label>
+                <textarea id="prompt" rows="5" placeholder="Type a prompt — tokens update live, with no model call."></textarea>
+            </div>
+
+            <div id="textControls" class="control-row inline">
+                <label for="maxTokens">Max output tokens</label>
+                <input id="maxTokens" type="number" min="1" max="32768" value="1024" />
+                <button id="run" class="primary">Run model</button>
+                <button id="cacheDemo">Cache demo</button>
+            </div>
+            <div id="imageControls" class="control-row inline image-controls hidden">
+                <label for="imageSize">Size</label>
+                <select id="imageSize">
+                    <option value="1024x1024">1024×1024</option>
+                    <option value="1024x1536">1024×1536 portrait</option>
+                    <option value="1536x1024">1536×1024 landscape</option>
+                    <option value="auto">auto</option>
+                </select>
+                <label for="imageQuality">Quality</label>
+                <select id="imageQuality">
+                    <option value="medium">medium</option>
+                    <option value="low">low</option>
+                    <option value="high">high</option>
+                    <option value="auto">auto</option>
+                </select>
+                <button id="generateImage" class="primary">Generate image</button>
+            </div>
+            <p id="status" class="status" role="status"></p>
+        </section>
+
+        <div class="panels">
+            <!-- LOCAL provenance zone -->
+            <section class="panel panel-local card">
+                <div class="panel-head">
+                    <span class="origin-badge local">🖥 Local</span>
+                    <span class="panel-caption">Computed on this machine by a tokenizer — no model call, no cost.</span>
+                </div>
+
+                <h2>Prompt tokens <span id="localPromptCount" class="count"></span></h2>
+                <div id="localPromptTokens" class="tokens" aria-live="polite"></div>
+                <p id="localEncoding" class="meta"></p>
+
+                <div id="textLocalOutputSection">
+                    <h2>Output tokens <span id="localOutputCount" class="count"></span></h2>
+                    <div id="localOutputTokens" class="tokens"></div>
+                    <p class="meta muted">Output tokens are the model's reply re-tokenized locally for the same highlight.</p>
+                </div>
+            </section>
+
+            <!-- MODEL provenance zone -->
+            <section class="panel panel-model card">
+                <div class="panel-head">
+                    <span class="origin-badge model">☁ Model</span>
+                    <span class="panel-caption">Returned by the live model response — these cost tokens.</span>
+                </div>
+
+                <div id="textModelResult">
+                    <h2>Output</h2>
+                    <div id="modelOutput" class="model-output">—</div>
+                    <p id="finishReason" class="meta"></p>
+
+                    <details id="logprobPanel" class="logprob-panel">
+                        <summary class="panel-summary">Confidence heatmap</summary>
+                        <div id="logprobHeatmap" class="logprob-heatmap"></div>
+                        <p id="logprobNote" class="meta muted">Run a logprobs-capable model to see token confidence.</p>
+                    </details>
+
+                    <h2>Usage</h2>
+                    <div id="usageCards" class="usage-cards"></div>
+
+                    <h2>Deep stats</h2>
+                    <div id="deepStats" class="usage-cards deep-stats"></div>
+
+                    <section id="creditsSection" class="credits-section hidden">
+                        <h2>AI Credits <span class="muted">(estimated)</span></h2>
+
+                        <div class="credits-subsection">
+                            <h3 class="credits-subhead">GitHub Copilot</h3>
+                            <div class="billing-model-row">
+                                <label for="billingModel">Billing model</label>
+                                <select id="billingModel"></select>
+                                <span id="billingModelHelp"></span>
+                            </div>
+                            <div class="billing-model-row">
+                                <label for="githubOverhead">Overhead tokens</label>
+                                <input id="githubOverhead" type="number" min="0" step="1000" value="0" placeholder="e.g. 10000" />
+                                <span id="githubOverheadHelp"></span>
+                            </div>
+                            <div id="githubCreditCards" class="usage-cards"></div>
+                            <p id="githubCreditsNote" class="meta muted"></p>
+                        </div>
+
+                        <div class="credits-subsection">
+                            <h3 class="credits-subhead">Copilot Studio</h3>
+                            <div class="billing-model-row">
+                                <label for="studioOverhead">Overhead tokens</label>
+                                <input id="studioOverhead" type="number" min="0" step="1000" value="0" placeholder="e.g. 10000" />
+                                <span id="studioOverheadHelp"></span>
+                            </div>
+                            <div id="studioCreditCards" class="usage-cards"></div>
+                            <p id="studioCreditsNote" class="meta muted"></p>
+                        </div>
+
+                        <p id="creditsDisclaimer" class="meta muted"></p>
+                    </section>
+
+                    <p id="comparison" class="comparison"></p>
+
+                    <div id="cacheResult" class="cache-result hidden">
+                        <h2>Prompt cache</h2>
+                        <div id="cacheCards" class="usage-cards"></div>
+                        <p id="cacheNote" class="meta"></p>
+                    </div>
+                </div>
+
+                <div id="imageResult" class="image-result hidden">
+                    <h2>Image generation</h2>
+                    <div class="image-frame">
+                        <img id="generatedImage" alt="Generated image" />
+                        <p id="imagePlaceholder" class="meta">Generated image appears here.</p>
+                    </div>
+
+                    <h2>Image token usage</h2>
+                    <div id="imageUsageCards" class="usage-cards image-usage-cards"></div>
+                    <div id="imageExplanation" class="comparison"></div>
+                </div>
+            </section>
+        </div>
+    </main>
+
+    <div id="explainer" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="explainerTitle">
+        <div class="modal">
+            <div class="modal-head">
+                <h2 id="explainerTitle">How tokenisation works</h2>
+                <button id="explainerClose" class="icon-button" type="button" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-intro">A language model never reads letters or words directly. Your text is first chopped into <strong>tokens</strong> — small chunks (whole words, word-pieces, single characters, even emoji fragments). This split is done locally by a fixed dictionary, so it is <strong>deterministic, not AI</strong>: the same text always tokenises the same way.</p>
+                <p id="explainerCaption" class="explainer-caption"></p>
+                <div id="explainerStage" class="explainer-stage" aria-live="polite"></div>
+            </div>
+            <div class="modal-foot">
+                <div id="explainerDots" class="explainer-dots" aria-hidden="true"></div>
+                <div class="modal-actions">
+                    <button id="explainerPrev" type="button">Back</button>
+                    <button id="explainerPlay" type="button" class="primary">&#8635; Restart</button>
+                    <button id="explainerNext" type="button">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

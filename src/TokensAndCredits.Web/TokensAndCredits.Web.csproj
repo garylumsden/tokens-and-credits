@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Unified chat abstraction + OpenAI/Azure OpenAI adapter (AsIChatClient, UsageDetails) -->
+    <PackageReference Include="Microsoft.Extensions.AI" Version="10.7.0" />
+    <PackageReference Include="Microsoft.Extensions.AI.OpenAI" Version="10.7.0" />
+    <!-- Azure OpenAI (cloud) + keyless auth -->
+    <PackageReference Include="Azure.AI.OpenAI" Version="2.1.0" />
+    <PackageReference Include="Azure.Identity" Version="1.21.0" />
+    <!-- OpenAI client (used to target the local Foundry Local OpenAI-compatible endpoint) -->
+    <PackageReference Include="OpenAI" Version="2.11.0" />
+    <!-- Local tokenizers: exact token ids + values + char offsets -->
+    <PackageReference Include="Microsoft.ML.Tokenizers" Version="2.0.0" />
+    <PackageReference Include="Microsoft.ML.Tokenizers.Data.O200kBase" Version="2.0.0" />
+    <PackageReference Include="Microsoft.ML.Tokenizers.Data.Cl100kBase" Version="2.0.0" />
+    <!-- Pin patched version to override transitive vulnerable 9.0.4 (GHSA-73j8-2gch-69rq) -->
+    <PackageReference Include="Microsoft.Bcl.Memory" Version="10.0.9" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Bundled Qwen byte-level BPE tokenizer (Qwen2/2.5/3 share it). Apache-2.0, from
+         Hugging Face Qwen/Qwen3-0.6B. Lets us tokenise Qwen models from Foundry Local,
+         LM Studio and Ollama exactly, with no model call. The .json files are already
+         picked up as Content by the Web SDK, so only update their copy behaviour. -->
+    <Content Update="Resources\qwen\*.json" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Resources\qwen\merges.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

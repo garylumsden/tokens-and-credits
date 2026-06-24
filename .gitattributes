@@ -1,0 +1,4 @@
+# Keep bundled tokenizer assets byte-exact (LF), never CRLF-converted.
+src/TokensAndCredits.Web/Resources/qwen/merges.txt -text
+src/TokensAndCredits.Web/Resources/qwen/vocab.json -text
+src/TokensAndCredits.Web/Resources/qwen/tokenizer_config.json -text

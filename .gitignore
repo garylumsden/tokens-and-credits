@@ -1,0 +1,20 @@
+# .NET build output
+bin/
+obj/
+*.user
+
+# Rider / VS
+.vs/
+.idea/
+
+# azd
+.azure/
+
+# Local env / secrets (never commit)
+.env
+*.env
+appsettings.Development.json
+appsettings.Local.json
+
+# Compiled ARM output from 'az bicep build' (azd uses the .bicep directly)
+infra/main.json

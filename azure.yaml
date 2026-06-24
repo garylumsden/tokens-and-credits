@@ -1,0 +1,23 @@
+name: tokens-and-credits
+metadata:
+  template: tokens-and-credits@1.0
+
+# Infra-only template. No services are deployed to Azure:
+#   - `azd up`   provisions Azure AI Foundry (AI Services) + model deployments + RBAC.
+#   - `azd down` tears it all down.
+# The web app runs locally via `dotnet run` and authenticates with your Azure login
+# (DefaultAzureCredential). See README.md.
+infra:
+  provider: bicep
+  path: infra
+  module: main
+
+# After provisioning, write the endpoint into the app's git-ignored
+# appsettings.Development.json so `dotnet run` works with no manual config.
+hooks:
+  postprovision:
+    shell: pwsh
+    run: ./infra/hooks/postprovision.ps1
+    interactive: false
+    continueOnError: true
+

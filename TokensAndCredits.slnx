@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/TokensAndCredits.Web/TokensAndCredits.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/TokensAndCredits.Web.Tests/TokensAndCredits.Web.Tests.csproj" />
+  </Folder>
+</Solution>

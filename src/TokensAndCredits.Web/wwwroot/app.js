@@ -385,6 +385,27 @@ function renderMarkdown(container, text) {
     }
 
     flushParagraph();
+    renderMath(container);
+}
+
+function renderMath(container) {
+    if (typeof window.renderMathInElement !== "function") {
+        console.error("KaTeX auto-render is unavailable; formulas were left as plain text.");
+        return;
+    }
+
+    window.renderMathInElement(container, {
+        delimiters: [
+            { left: "$$", right: "$$", display: true },
+            { left: "\\[", right: "\\]", display: true },
+            { left: "\\(", right: "\\)", display: false },
+            { left: "$", right: "$", display: false },
+        ],
+        throwOnError: false,
+        trust: false,
+        strict: "warn",
+        ignoredTags: ["script", "noscript", "style", "textarea", "pre", "code"],
+    });
 }
 
 // Consume consecutive list lines starting at `start`, building nested <ul>/<ol>
@@ -430,8 +451,9 @@ function consumeList(lines, start, container) {
 }
 
 // Parse inline markdown (`code`, **bold**, *italic*) into `parent` as DOM nodes.
+// Math delimiters stay in one text node so markdown markers inside LaTeX are not consumed.
 function appendInline(parent, text) {
-    const pattern = /(`[^`]+`)|(\*\*[^*]+\*\*|__[^_]+__)|(\*[^*]+\*|_[^_]+_)/g;
+    const pattern = /(\\\([\s\S]*?\\\)|\\\[[\s\S]*?\\\]|\$\$(?:(?!\$\$)[\s\S])*?\$\$|\$(?=\S)(?:\\.|[^$\\])*?\S\$(?!\d))|(`[^`]+`)|(\*\*[^*]+\*\*|__[^_]+__)|(\*[^*]+\*|_[^_]+_)/g;
     let lastIndex = 0;
     let match;
 
@@ -440,16 +462,18 @@ function appendInline(parent, text) {
             parent.appendChild(document.createTextNode(text.slice(lastIndex, match.index)));
         }
         if (match[1]) {
-            const code = document.createElement("code");
-            code.textContent = match[1].slice(1, -1);
-            parent.appendChild(code);
+            parent.appendChild(document.createTextNode(match[1]));
         } else if (match[2]) {
-            const strong = document.createElement("strong");
-            strong.textContent = match[2].slice(2, -2);
-            parent.appendChild(strong);
+            const code = document.createElement("code");
+            code.textContent = match[2].slice(1, -1);
+            parent.appendChild(code);
         } else if (match[3]) {
+            const strong = document.createElement("strong");
+            strong.textContent = match[3].slice(2, -2);
+            parent.appendChild(strong);
+        } else if (match[4]) {
             const em = document.createElement("em");
-            em.textContent = match[3].slice(1, -1);
+            em.textContent = match[4].slice(1, -1);
             parent.appendChild(em);
         }
         lastIndex = pattern.lastIndex;

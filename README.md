@@ -20,7 +20,7 @@ and for any prompt it shows:
 3. **Logprob confidence** for capable models (`gpt-4o`, `gpt-4.1`): a separate output-token
    heatmap shows chosen-token probability and hover/focus alternatives, plus perplexity and
    average confidence. The markdown-rendered answer stays separate so markdown formatting is not
-   broken by token spans.
+   broken by token spans, with KaTeX rendering for inline and display formulae.
 4. **Why a token is a token** — hover (or keyboard-focus) any token chip for a deterministic,
    local explanation: byte breakdown, leading-space marker, vocab id, *why the split lands here*,
    and — for Foundry Local BPE models — the full greedy **merge chain** rebuilt from

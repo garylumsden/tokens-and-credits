@@ -2,7 +2,7 @@
 
 using System.ClientModel.Primitives;
 using System.Collections.Concurrent;
-using Azure.Identity;
+using Azure.Core;
 using Microsoft.Extensions.Options;
 using OpenAI;
 using OpenAI.Images;
@@ -18,11 +18,14 @@ public sealed class ImageGenerationService : IImageGenerationService
 
     private readonly AzureFoundryOptions _azureOptions;
     private readonly ConcurrentDictionary<string, ImageClient> _cache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly DefaultAzureCredential _credential = new();
+    private readonly TokenCredential _credential;
 
-    public ImageGenerationService(IOptions<AzureFoundryOptions> azureOptions)
+    public ImageGenerationService(
+        IOptions<AzureFoundryOptions> azureOptions,
+        TokenCredential credential)
     {
         _azureOptions = azureOptions.Value;
+        _credential = credential;
     }
 
     public async Task<ImageGenerationResult> GenerateAsync(

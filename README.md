@@ -223,8 +223,9 @@ azd down
 ### Wire the outputs into the app — automatic
 
 The azd **postprovision hook** (`infra/hooks/postprovision.ps1`) writes the provisioned
-endpoint into git-ignored `appsettings.Development.json` for you. The deployment names and
-capability flags are already in `appsettings.json`. So the flow is just:
+endpoint and tenant ID into git-ignored `appsettings.Development.json`. The tenant ID pins
+local developer credentials to the Foundry tenant. The deployment names and capability flags
+are already in `appsettings.json`. So the flow is just:
 
 ```powershell
 azd auth login    # (or: az login) — for keyless DefaultAzureCredential
@@ -248,7 +249,8 @@ If you'd rather configure it by hand, put this in
 ```json
 {
   "AzureFoundry": {
-    "Endpoint": "https://<your-account>.openai.azure.com/"
+    "Endpoint": "https://<your-account>.openai.azure.com/",
+    "TenantId": "<your-foundry-tenant-id>"
   }
 }
 ```

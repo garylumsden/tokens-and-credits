@@ -10,6 +10,11 @@ if ([string]::IsNullOrWhiteSpace($endpoint)) {
     Write-Warning "AZURE_FOUNDRY_ENDPOINT not found in azd env; skipping app config write."
     exit 0
 }
+$tenantId = (azd env get-value AZURE_TENANT_ID).Trim()
+if ([string]::IsNullOrWhiteSpace($tenantId)) {
+    Write-Warning "AZURE_TENANT_ID not found in azd env; skipping app config write."
+    exit 0
+}
 
 $configPath = Join-Path $PSScriptRoot '..\..\src\TokensAndCredits.Web\appsettings.Development.json'
 $configPath = [System.IO.Path]::GetFullPath($configPath)
@@ -21,10 +26,12 @@ if (Test-Path $configPath) {
 }
 if (-not $config.ContainsKey('AzureFoundry')) { $config['AzureFoundry'] = @{} }
 $config['AzureFoundry']['Endpoint'] = $endpoint
+$config['AzureFoundry']['TenantId'] = $tenantId
 
 $config | ConvertTo-Json -Depth 10 | Set-Content -Path $configPath -Encoding utf8
 
 Write-Host "Wrote AzureFoundry:Endpoint = $endpoint"
+Write-Host "Wrote AzureFoundry:TenantId = $tenantId"
 Write-Host "-> $configPath"
 Write-Host ""
 Write-Host "Next: sign in for keyless access (az login OR azd auth login), then:"

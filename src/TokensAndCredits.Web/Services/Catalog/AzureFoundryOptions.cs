@@ -10,6 +10,9 @@ public sealed class AzureFoundryOptions
     /// <summary>Base endpoint, e.g. https://your-resource.openai.azure.com/openai/v1 (set by azd output).</summary>
     public string? Endpoint { get; set; }
 
+    /// <summary>Microsoft Entra tenant used by local developer credentials.</summary>
+    public string? TenantId { get; set; }
+
     /// <summary>Configured model deployments to expose in the selector.</summary>
     public List<AzureDeploymentOptions> Deployments { get; set; } = new();
 

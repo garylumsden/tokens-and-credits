@@ -1,7 +1,7 @@
 using System.ClientModel;
 using System.ClientModel.Primitives;
 using System.Collections.Concurrent;
-using Azure.Identity;
+using Azure.Core;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
 using OpenAI;
@@ -25,12 +25,16 @@ public sealed class ChatClientFactory : IChatClientFactory
     private readonly AzureFoundryOptions _azureOptions;
     private readonly FoundryLocalSource _local;
     private readonly ConcurrentDictionary<string, IChatClient> _cache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly DefaultAzureCredential _credential = new();
+    private readonly TokenCredential _credential;
 
-    public ChatClientFactory(IOptions<AzureFoundryOptions> azureOptions, FoundryLocalSource local)
+    public ChatClientFactory(
+        IOptions<AzureFoundryOptions> azureOptions,
+        FoundryLocalSource local,
+        TokenCredential credential)
     {
         _azureOptions = azureOptions.Value;
         _local = local;
+        _credential = credential;
     }
 
     public async Task<IChatClient> CreateAsync(ModelDescriptor model, CancellationToken ct)

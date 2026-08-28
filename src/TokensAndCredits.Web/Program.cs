@@ -1,4 +1,6 @@
 using System.Text.Json.Serialization;
+using Azure.Core;
+using Azure.Identity;
 using Microsoft.Extensions.Options;
 using TokensAndCredits.Web.Api;
 using TokensAndCredits.Web.Services.CacheDemo;
@@ -12,6 +14,19 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.Configure<AzureFoundryOptions>(
     builder.Configuration.GetSection(AzureFoundryOptions.SectionName));
+
+builder.Services.AddSingleton<TokenCredential>(services =>
+{
+    var options = services.GetRequiredService<IOptions<AzureFoundryOptions>>().Value;
+    var credentialOptions = new DefaultAzureCredentialOptions();
+
+    if (!string.IsNullOrWhiteSpace(options.TenantId))
+    {
+        credentialOptions.TenantId = options.TenantId.Trim();
+    }
+
+    return new DefaultAzureCredential(credentialOptions);
+});
 
 builder.Services.Configure<CreditRatesOptions>(
     builder.Configuration.GetSection(CreditRatesOptions.SectionName));

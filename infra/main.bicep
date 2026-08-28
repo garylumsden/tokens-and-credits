@@ -84,5 +84,8 @@ output AZURE_FOUNDRY_PROJECT string = foundry.outputs.projectName
 @description('Names of the created deployments (map these into AzureFoundry:Deployments).')
 output AZURE_FOUNDRY_DEPLOYMENTS array = foundry.outputs.deploymentNames
 
+@description('Microsoft Entra tenant for local model authentication.')
+output AZURE_TENANT_ID string = tenant().tenantId
+
 output AZURE_LOCATION string = location
 output AZURE_RESOURCE_GROUP string = rg.name

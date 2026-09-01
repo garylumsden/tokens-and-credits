@@ -57,6 +57,7 @@ builder.Services.AddSingleton(services =>
     return EmbeddingStore.Load(assetPath);
 });
 builder.Services.AddSingleton<EmbeddingAnalogyService>();
+builder.Services.AddSingleton<IAzureEmbeddingService, AzureEmbeddingService>();
 
 // Model catalog (Azure deployments + local discovery)
 builder.Services.AddSingleton<AzureDeploymentSource>();
@@ -101,11 +102,13 @@ static void ValidateConfiguration(WebApplication app)
     var options = app.Services.GetRequiredService<IOptions<AzureFoundryOptions>>().Value;
     var logger = app.Logger;
 
-    if (!string.IsNullOrWhiteSpace(options.Endpoint) && options.Deployments.Count == 0)
+    if (!string.IsNullOrWhiteSpace(options.Endpoint)
+        && options.Deployments.Count == 0
+        && string.IsNullOrWhiteSpace(options.EmbeddingDeployment))
     {
         // Endpoint set but nothing to call: fail closed rather than start half-configured.
         throw new InvalidOperationException(
-            "AzureFoundry:Endpoint is set but no deployments are configured. Add AzureFoundry:Deployments or clear the endpoint.");
+            "AzureFoundry:Endpoint is set but no deployments are configured. Add a chat or embedding deployment, or clear the endpoint.");
     }
 
     if (options.IsConfigured)
@@ -114,6 +117,11 @@ static void ValidateConfiguration(WebApplication app)
     }
     else
     {
-        logger.LogInformation("Azure Foundry not configured; running with Foundry Local models only.");
+        logger.LogInformation("Azure Foundry chat is not configured; chat uses local models only.");
+    }
+
+    if (options.IsEmbeddingConfigured)
+    {
+        logger.LogInformation("Azure Foundry live embeddings are configured.");
     }
 }

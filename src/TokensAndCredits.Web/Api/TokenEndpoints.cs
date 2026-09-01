@@ -30,6 +30,18 @@ public static class TokenEndpoints
                 store.Dimensions,
                 store.VocabularyCount)));
 
+        group.MapGet("/embeddings/providers", (IAzureEmbeddingService azureEmbeddingService) =>
+            Results.Ok(new EmbeddingProvidersResponse(
+                new EmbeddingProviderResponse(
+                    "static",
+                    EmbeddingStore.Origin,
+                    Available: true),
+                new EmbeddingProviderResponse(
+                    "azure",
+                    AzureEmbeddingService.Origin,
+                    azureEmbeddingService.IsAvailable,
+                    azureEmbeddingService.Deployment))));
+
         group.MapGet("/embeddings/words", (
             string? query,
             int? limit,
@@ -146,6 +158,61 @@ public static class TokenEndpoints
                 result.Candidates,
                 result.Relationship,
                 result.VectorPreviews));
+        });
+
+        group.MapPost("/embeddings/live-compare", async (
+            LiveEmbeddingCompareRequest request,
+            IAzureEmbeddingService azureEmbeddingService,
+            ILoggerFactory loggerFactory,
+            CancellationToken ct) =>
+        {
+            if (!EmbeddingComparisonInput.TryCreate(
+                    request.First,
+                    request.Second,
+                    request.Third,
+                    request.Target,
+                    out var input,
+                    out var validationError))
+            {
+                return Results.BadRequest(new EmbeddingErrorResponse(
+                    "invalid_request",
+                    validationError!));
+            }
+
+            if (!azureEmbeddingService.IsAvailable)
+            {
+                return Results.Conflict(new EmbeddingErrorResponse(
+                    "live_embedding_unavailable",
+                    "Live Azure embeddings are not configured."));
+            }
+
+            try
+            {
+                var result = await azureEmbeddingService.CompareAsync(input!, ct);
+                return Results.Ok(new LiveEmbeddingCompareResponse(
+                    result.Origin,
+                    result.Model,
+                    result.Dimensions,
+                    result.LatencyMs,
+                    result.Inputs,
+                    result.Comparisons,
+                    result.Arithmetic));
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                loggerFactory
+                    .CreateLogger("LiveEmbeddingCompare")
+                    .LogError(ex, "The live embedding comparison failed.");
+                return Results.Json(
+                    new EmbeddingErrorResponse(
+                        "live_embedding_failed",
+                        "The live embedding request failed."),
+                    statusCode: StatusCodes.Status502BadGateway);
+            }
         });
 
         // LOCAL ONLY: tokenize text with no model call (powers live highlight, no cost).

@@ -39,6 +39,12 @@ param deployments array = [
     model: { format: 'OpenAI', name: 'gpt-image-1.5', version: '2025-12-16' }
     sku: { name: 'GlobalStandard', capacity: 1 }
   }
+  {
+    // Live semantic comparison in the embedding explainer.
+    name: 'text-embedding-3-small'
+    model: { format: 'OpenAI', name: 'text-embedding-3-small', version: '1' }
+    sku: { name: 'GlobalStandard', capacity: 10 }
+  }
 ]
 
 var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))

@@ -729,6 +729,98 @@ body.modal-open { overflow: hidden; }
 .explainer-vendor-panel { width: 100%; max-width: 600px; }
 .explainer-vendors strong { color: var(--text); }
 
+.token-training-layout {
+    width: 100%;
+}
+
+.token-training {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+}
+
+.token-training section {
+    min-width: 0;
+    padding: 14px;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+}
+
+.token-training h3 {
+    margin: 0 0 8px;
+    font-size: 0.88rem;
+}
+
+.training-samples,
+.training-pairs {
+    display: grid;
+    gap: 7px;
+}
+
+.training-sample {
+    display: flex;
+    gap: 3px;
+}
+
+.training-sample span,
+.training-pair,
+.training-merge code {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+
+.training-sample span {
+    display: grid;
+    width: 25px;
+    height: 27px;
+    place-items: center;
+    font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.training-pair {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 9px;
+}
+
+.training-pair strong {
+    color: #d8b9f3;
+}
+
+.training-merge {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 17px 0 13px;
+}
+
+.training-merge code {
+    padding: 6px 9px;
+}
+
+.training-merge .learned-piece {
+    background: rgba(199, 140, 255, 0.14);
+    border-color: var(--model);
+    color: #e7cbff;
+}
+
+.training-distinction {
+    width: 100%;
+    margin: 13px 0 0;
+    padding-top: 12px;
+    border-top: 1px solid rgba(199, 140, 255, 0.42);
+    text-align: left;
+}
+
+.training-distinction strong {
+    color: #d8b9f3;
+}
+
 .explainer-dots { display: flex; gap: 6px; }
 .explainer-dots .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--border); transition: background 0.2s; }
 .explainer-dots .dot.active { background: var(--accent); }
@@ -842,6 +934,44 @@ body.modal-open { overflow: hidden; }
     margin: 3px 0 0;
     color: var(--muted);
     font-size: 0.78rem;
+}
+
+.embedding-source-switch {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 3px;
+    margin-bottom: 12px;
+    padding: 3px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+}
+
+.embedding-source-option {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 8px 10px;
+    background: transparent;
+    border-color: transparent;
+    color: var(--muted);
+}
+
+.embedding-source-option span {
+    color: inherit;
+    font-size: 0.72rem;
+    font-weight: 400;
+}
+
+.embedding-source-option.active {
+    background: var(--card-2);
+    border-color: var(--border);
+    color: var(--text);
+}
+
+.embedding-source-option.unavailable:not(.active) span::after {
+    content: " \00B7 unavailable";
 }
 
 .embedding-body {
@@ -1363,6 +1493,203 @@ body.modal-open { overflow: hidden; }
     color: #d8b9f3;
 }
 
+.live-context-groups {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+}
+
+.live-context-group {
+    padding: 18px;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+}
+
+.live-context-group.finance {
+    border-top-color: var(--model);
+}
+
+.live-context-group.river {
+    border-top-color: var(--local);
+}
+
+.live-context-example {
+    margin: 9px 0 0;
+    padding: 10px 12px;
+    background: var(--bg);
+    border-radius: 7px;
+    color: var(--muted);
+}
+
+.live-context-example mark {
+    padding: 1px 4px;
+    background: rgba(199, 140, 255, 0.24);
+    border-radius: 4px;
+    color: var(--text);
+}
+
+.live-empty-state {
+    display: grid;
+    min-height: 250px;
+    place-content: center;
+    text-align: center;
+}
+
+.live-empty-state p {
+    max-width: 52ch;
+    margin: 0;
+    color: var(--muted);
+}
+
+.live-vector-copy {
+    display: grid;
+    gap: 3px;
+    min-width: 0;
+}
+
+.live-vector-copy span {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 0.78rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.live-similarity-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.live-similarity-card {
+    display: grid;
+    gap: 5px;
+    padding: 17px;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+}
+
+.live-similarity-card.finance {
+    border-top-color: var(--model);
+}
+
+.live-similarity-card.river {
+    border-top-color: var(--local);
+}
+
+.live-similarity-score,
+.live-experiment-score {
+    font-size: 1.8rem;
+    line-height: 1;
+}
+
+.live-similarity-angle {
+    color: var(--muted);
+    font-size: 0.76rem;
+}
+
+.live-similarity-track {
+    height: 5px;
+    margin-top: 8px;
+    overflow: hidden;
+    background: var(--bg);
+    border-radius: 999px;
+}
+
+.live-similarity-fill {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: var(--model);
+    border-radius: inherit;
+    transform: scaleX(var(--similarity-scale));
+    transform-origin: left center;
+}
+
+.live-similarity-card.river .live-similarity-fill {
+    background: var(--local);
+}
+
+.live-similarity-card.cross .live-similarity-fill {
+    background: var(--muted);
+}
+
+.live-experiment-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1.7fr) minmax(230px, 0.8fr);
+    gap: 22px;
+}
+
+.live-embedding-form {
+    min-width: 0;
+}
+
+.live-text-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.live-text-field {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 3px 8px;
+}
+
+.live-text-label {
+    color: var(--text);
+    font-weight: 700;
+}
+
+.live-text-hint {
+    color: var(--muted);
+    text-align: right;
+}
+
+.live-text-field textarea {
+    grid-column: 1 / -1;
+    min-height: 70px;
+    resize: vertical;
+}
+
+.live-embedding-run {
+    width: 100%;
+    margin-top: 12px;
+}
+
+.live-experiment-result {
+    display: grid;
+    align-content: center;
+    min-width: 0;
+    padding: 18px;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+}
+
+.live-call-badge {
+    width: fit-content;
+    margin-bottom: 14px;
+    padding: 3px 8px;
+    background: rgba(199, 140, 255, 0.14);
+    border: 1px solid rgba(199, 140, 255, 0.42);
+    border-radius: 999px;
+    color: #e7cbff;
+    font-size: 0.72rem;
+}
+
+.live-call-badge.muted {
+    background: transparent;
+    border-color: var(--border);
+    color: var(--muted);
+}
+
+.live-bridge-comparison {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 @media (max-width: 900px) {
     .header-row {
         flex-direction: column;
@@ -1374,7 +1701,8 @@ body.modal-open { overflow: hidden; }
 
     .context-story,
     .relationship-visual,
-    .analogy-workspace {
+    .analogy-workspace,
+    .live-experiment-layout {
         grid-template-columns: 1fr;
         gap: 22px;
     }
@@ -1388,6 +1716,11 @@ body.modal-open { overflow: hidden; }
 
     .llm-pipeline {
         flex-wrap: wrap;
+    }
+
+    .live-similarity-grid,
+    .live-bridge-comparison {
+        grid-template-columns: 1fr;
     }
 }
 
@@ -1409,6 +1742,14 @@ body.modal-open { overflow: hidden; }
         align-items: flex-start;
         flex-direction: column;
         gap: 5px;
+    }
+
+    .token-training {
+        grid-template-columns: 1fr;
+    }
+
+    .embedding-source-switch {
+        grid-template-columns: 1fr;
     }
 
     .embedding-steps {
@@ -1445,6 +1786,11 @@ body.modal-open { overflow: hidden; }
     }
 
     .embedding-comparison {
+        grid-template-columns: 1fr;
+    }
+
+    .live-context-groups,
+    .live-text-grid {
         grid-template-columns: 1fr;
     }
 

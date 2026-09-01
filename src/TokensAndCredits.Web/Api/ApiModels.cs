@@ -1,5 +1,6 @@
 using TokensAndCredits.Web.Services.Embeddings;
 using TokensAndCredits.Web.Services.Models;
+using System.Text.Json.Serialization;
 
 namespace TokensAndCredits.Web.Api;
 
@@ -42,6 +43,13 @@ public sealed record EmbeddingAnalogyRequest(
     string? PositiveB,
     string? RelationFrom,
     string? RelationTo);
+
+/// <summary>Live embedding comparison request.</summary>
+public sealed record LiveEmbeddingCompareRequest(
+    string? First,
+    string? Second,
+    string? Third,
+    string? Target);
 
 // ----- Responses -----
 
@@ -118,5 +126,25 @@ public sealed record EmbeddingAnalogyResponse(
     IReadOnlyList<EmbeddingCandidate> Candidates,
     EmbeddingRelationship Relationship,
     IReadOnlyDictionary<string, IReadOnlyList<float>> VectorPreviews);
+
+public sealed record EmbeddingProvidersResponse(
+    EmbeddingProviderResponse Static,
+    EmbeddingProviderResponse Live);
+
+public sealed record EmbeddingProviderResponse(
+    string Id,
+    string Origin,
+    bool Available,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    string? Deployment = null);
+
+public sealed record LiveEmbeddingCompareResponse(
+    string Origin,
+    string Model,
+    int Dimensions,
+    long LatencyMs,
+    IReadOnlyList<EmbeddingInputPreview> Inputs,
+    IReadOnlyList<EmbeddingPairwiseComparison> Comparisons,
+    EmbeddingArithmeticComparison Arithmetic);
 
 public sealed record EmbeddingErrorResponse(string Code, string Message);

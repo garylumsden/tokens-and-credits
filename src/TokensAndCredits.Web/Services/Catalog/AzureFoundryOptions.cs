@@ -16,7 +16,14 @@ public sealed class AzureFoundryOptions
     /// <summary>Configured model deployments to expose in the selector.</summary>
     public List<AzureDeploymentOptions> Deployments { get; set; } = new();
 
+    /// <summary>Optional embedding deployment used by the live embedding comparison.</summary>
+    public string? EmbeddingDeployment { get; set; }
+
     public bool IsConfigured => !string.IsNullOrWhiteSpace(Endpoint) && Deployments.Count > 0;
+
+    public bool IsEmbeddingConfigured =>
+        !string.IsNullOrWhiteSpace(Endpoint)
+        && !string.IsNullOrWhiteSpace(EmbeddingDeployment);
 }
 
 /// <summary>A single Azure deployment plus the capabilities the UI needs.</summary>

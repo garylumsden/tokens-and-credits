@@ -5,6 +5,7 @@ using TokensAndCredits.Web.Services.CacheDemo;
 using TokensAndCredits.Web.Services.Catalog;
 using TokensAndCredits.Web.Services.Chat;
 using TokensAndCredits.Web.Services.Credits;
+using TokensAndCredits.Web.Services.Embeddings;
 using TokensAndCredits.Web.Services.Image;
 using TokensAndCredits.Web.Services.Models;
 using TokensAndCredits.Web.Services.Tokenize;
@@ -21,6 +22,198 @@ public static class TokenEndpoints
         // All selectable models (Azure deployments + Foundry Local), with capability flags.
         group.MapGet("/models", async (IModelCatalog catalog, CancellationToken ct) =>
             Results.Ok(await catalog.GetModelsAsync(ct)));
+
+        group.MapGet("/embeddings/manifest", (EmbeddingStore store) =>
+            Results.Ok(new EmbeddingManifestResponse(
+                EmbeddingStore.Origin,
+                EmbeddingStore.DatasetName,
+                store.Dimensions,
+                store.VocabularyCount)));
+
+        group.MapGet("/embeddings/providers", (IAzureEmbeddingService azureEmbeddingService) =>
+            Results.Ok(new EmbeddingProvidersResponse(
+                new EmbeddingProviderResponse(
+                    "static",
+                    EmbeddingStore.Origin,
+                    Available: true),
+                new EmbeddingProviderResponse(
+                    "azure",
+                    AzureEmbeddingService.Origin,
+                    azureEmbeddingService.IsAvailable,
+                    azureEmbeddingService.Deployment))));
+
+        group.MapGet("/embeddings/words", (
+            string? query,
+            int? limit,
+            EmbeddingStore store) =>
+        {
+            var normalizedQuery = query?.Trim() ?? string.Empty;
+            if (normalizedQuery.Length > 64)
+            {
+                return Results.BadRequest(new EmbeddingErrorResponse(
+                    "invalid_query",
+                    "Query must not exceed 64 characters."));
+            }
+
+            var normalizedLimit = limit ?? 10;
+            if (normalizedLimit is < 1 or > 20)
+            {
+                return Results.BadRequest(new EmbeddingErrorResponse(
+                    "invalid_limit",
+                    "Limit must be between 1 and 20."));
+            }
+
+            return Results.Ok(new EmbeddingWordsResponse(
+                EmbeddingStore.Origin,
+                EmbeddingStore.DatasetName,
+                store.Dimensions,
+                store.VocabularyCount,
+                normalizedQuery,
+                store.Search(normalizedQuery, normalizedLimit)));
+        });
+
+        group.MapPost("/embeddings/analogy", (
+            EmbeddingAnalogyRequest request,
+            EmbeddingStore store,
+            EmbeddingAnalogyService analogyService) =>
+        {
+            var fields = new (string Name, string? Value)[]
+            {
+                ("positiveA", request.PositiveA),
+                ("negative", request.Negative),
+                ("positiveB", request.PositiveB),
+                ("relationFrom", request.RelationFrom),
+                ("relationTo", request.RelationTo),
+            };
+
+            foreach (var field in fields)
+            {
+                if (string.IsNullOrWhiteSpace(field.Value))
+                {
+                    return Results.BadRequest(new EmbeddingErrorResponse(
+                        "invalid_request",
+                        $"Field '{field.Name}' is required."));
+                }
+
+                if (field.Value.Length > 64)
+                {
+                    return Results.BadRequest(new EmbeddingErrorResponse(
+                        "invalid_request",
+                        $"Field '{field.Name}' must not exceed 64 characters."));
+                }
+            }
+
+            var positiveA = request.PositiveA!.Trim();
+            var negative = request.Negative!.Trim();
+            var positiveB = request.PositiveB!.Trim();
+            var relationFrom = request.RelationFrom!.Trim();
+            var relationTo = request.RelationTo!.Trim();
+
+            if (new[] { positiveA, negative, positiveB }
+                .Distinct(StringComparer.Ordinal)
+                .Count() != 3)
+            {
+                return Results.BadRequest(new EmbeddingErrorResponse(
+                    "duplicate_source_words",
+                    "PositiveA, negative, and positiveB must be distinct."));
+            }
+
+            if (string.Equals(relationFrom, relationTo, StringComparison.Ordinal))
+            {
+                return Results.BadRequest(new EmbeddingErrorResponse(
+                    "duplicate_relation_words",
+                    "RelationFrom and relationTo must be distinct."));
+            }
+
+            foreach (var field in new[]
+                     {
+                         (Name: "positiveA", Value: positiveA),
+                         (Name: "negative", Value: negative),
+                         (Name: "positiveB", Value: positiveB),
+                         (Name: "relationFrom", Value: relationFrom),
+                         (Name: "relationTo", Value: relationTo),
+                     })
+            {
+                if (!store.TryGetEntry(field.Value, out _))
+                {
+                    return Results.NotFound(new EmbeddingErrorResponse(
+                        "word_not_found",
+                        $"Field '{field.Name}' contains word '{field.Value}', which is not in the bundled vocabulary."));
+                }
+            }
+
+            var result = analogyService.Calculate(
+                positiveA,
+                negative,
+                positiveB,
+                relationFrom,
+                relationTo);
+
+            return Results.Ok(new EmbeddingAnalogyResponse(
+                EmbeddingStore.Origin,
+                EmbeddingStore.DatasetName,
+                store.Dimensions,
+                store.VocabularyCount,
+                result.Expression,
+                result.Candidates,
+                result.Relationship,
+                result.VectorPreviews));
+        });
+
+        group.MapPost("/embeddings/live-compare", async (
+            LiveEmbeddingCompareRequest request,
+            IAzureEmbeddingService azureEmbeddingService,
+            ILoggerFactory loggerFactory,
+            CancellationToken ct) =>
+        {
+            if (!EmbeddingComparisonInput.TryCreate(
+                    request.First,
+                    request.Second,
+                    request.Third,
+                    request.Target,
+                    out var input,
+                    out var validationError))
+            {
+                return Results.BadRequest(new EmbeddingErrorResponse(
+                    "invalid_request",
+                    validationError!));
+            }
+
+            if (!azureEmbeddingService.IsAvailable)
+            {
+                return Results.Conflict(new EmbeddingErrorResponse(
+                    "live_embedding_unavailable",
+                    "Live Azure embeddings are not configured."));
+            }
+
+            try
+            {
+                var result = await azureEmbeddingService.CompareAsync(input!, ct);
+                return Results.Ok(new LiveEmbeddingCompareResponse(
+                    result.Origin,
+                    result.Model,
+                    result.Dimensions,
+                    result.LatencyMs,
+                    result.Inputs,
+                    result.Comparisons,
+                    result.Arithmetic));
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                loggerFactory
+                    .CreateLogger("LiveEmbeddingCompare")
+                    .LogError(ex, "The live embedding comparison failed.");
+                return Results.Json(
+                    new EmbeddingErrorResponse(
+                        "live_embedding_failed",
+                        "The live embedding request failed."),
+                    statusCode: StatusCodes.Status502BadGateway);
+            }
+        });
 
         // LOCAL ONLY: tokenize text with no model call (powers live highlight, no cost).
         group.MapPost("/tokenize", async (

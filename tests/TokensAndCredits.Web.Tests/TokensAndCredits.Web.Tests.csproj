@@ -21,6 +21,7 @@
   <ItemGroup>
     <!-- Mirror the bundled Qwen tokenizer into the test output so QwenBpeFactory can load it. -->
     <Content Include="..\..\src\TokensAndCredits.Web\Resources\qwen\*" Link="Resources\qwen\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="..\..\src\TokensAndCredits.Web\Resources\embeddings\*" Link="Resources\embeddings\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
     <!-- Copy the shipped appsettings so the credit catalogue can be validated as configured. -->
     <Content Include="..\..\src\TokensAndCredits.Web\appsettings.json" Link="webappsettings.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>

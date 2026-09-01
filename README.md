@@ -35,16 +35,23 @@ and for any prompt it shows:
    is billed **in tokens** — input *text* tokens for the prompt plus output *image* tokens that
    scale with size/quality. There is no flat per-image fee; it is all tokens.
 8. **"How tokenisation works" explainer**: a header button opens a step-by-step walkthrough
-   (manual Next/Back — it does not auto-advance) that replays the **real** greedy BPE merge
-   sequence for an example word, reconstructed live from the selected model's tokenizer
+   (manual Next/Back — it does not auto-advance). Its first page shows how illustrative BPE
+   training turns frequent byte pairs into vocabulary pieces and ranked merge rules. It then
+   replays the **real** greedy BPE merge sequence for an example word from the selected tokenizer
    (`/api/merge-trace`) and verified against its own output, then explains how tokenization
    differs across vendors/families — OpenAI GPT, Qwen and Llama 3 use byte-level BPE; Google
    Gemini/Gemma use SentencePiece/Unigram; Anthropic and Microsoft MAI tokenizers are not public.
-9. **Local model discovery (Foundry Local + LM Studio + Ollama)**: models from a running
+9. **"How language becomes geometry" explainer**: a second header button uses real, local GloVe
+   vectors to show how word co-occurrence patterns become geometric relationships. It displays
+   raw vector previews, compares measured relationship directions, and searches the bundled
+   10,000-word vocabulary for analogy results. A second, optional mode calls an Azure
+   `text-embedding-3-small` deployment to compare complete sentences, showing how context changes
+   semantic similarity. Both modes use observed calculations rather than scripted results.
+10. **Local model discovery (Foundry Local + LM Studio + Ollama)**: models from a running
    **Foundry Local** daemon, **LM Studio** (`localhost:1234`) or **Ollama** (`localhost:11434`)
    appear in the selector automatically. Discovery fails silently when a runtime isn't running.
    See [Local models](#local-models).
-10. **AI Credits (estimated)**: after a call, the same token usage is priced as **AI Credits**
+11. **AI Credits (estimated)**: after a call, the same token usage is priced as **AI Credits**
     (1 credit = $0.01) for both **GitHub Copilot** and **Copilot Studio**. Pick any **billing
     model** from a configurable catalogue (Claude, GPT-5.x, Gemini, MAI) to price your prompt's
     tokens *as if it ran there* — independent of the model that generated the reply, so you can
@@ -120,10 +127,12 @@ the UI light up:
 | **gpt-4.1** | Chat (stronger coding / instruction-following) | A second non-reasoning model so you can compare tokenization and usage against gpt-4o. Also logprob- and cache-capable. | logprobs ✓, caching ✓ |
 | **o4-mini** | Reasoning model (o-series) | Reports hidden **reasoning tokens**, so the **Reasoning** usage card becomes non-N/A — showing how a model can spend its whole output budget "thinking". o-series models don't return logprobs. | reasoning ✓, caching ✓, logprobs ✗ |
 | **gpt-image-1.5** | Image generation | Switches the UI into image mode and demonstrates **token-billed image output** — input *text* tokens for the prompt plus output *image* tokens that scale with size/quality (no flat per-image fee). | image modality, no caching/logprobs/reasoning |
+| **text-embedding-3-small** | Semantic embedding | Powers the optional live mode in **How language becomes geometry**. It embeds four complete texts in one request; it is not shown in the chat-model selector. | 1,536-dimensional text embeddings |
 
-All four use the `o200k_base` encoding for local tokenization. Trim or extend the list in
+The four generation models use the `o200k_base` encoding for local tokenization. Trim or extend the list in
 `infra/main.bicep` (deployments) and `appsettings.json` (capability flags) to match your quota —
-the image feature only appears when a `gpt-image-1.5` deployment is present.
+the image feature only appears when a `gpt-image-1.5` deployment is present. The embedding
+deployment is configured separately as `AzureFoundry:EmbeddingDeployment`.
 
 ---
 
@@ -280,6 +289,9 @@ Browser (wwwroot) ──► /api/tokenize        (local only: tokenizer → ids 
                  ──► /api/cache-demo       (two identical ≥1,024-token prompts)
                  ──► /api/credit-rates     (local only: AI-credit rate catalogue for the selector)
                  ──► /api/models           (Azure deployments + Foundry Local models)
+                 ──► /api/embeddings/*     (local static: manifest, word search and vector analogies)
+                 ──► /api/embeddings/live-compare
+                                              (optional Azure semantic embedding call)
 ```
 
 - **Tokenizers** (`Services/Tokenize`): tiktoken (`o200k_base`/`cl100k_base`) for OpenAI
@@ -306,6 +318,16 @@ Browser (wwwroot) ──► /api/tokenize        (local only: tokenizer → ids 
   catalogue; the live estimate is computed in the browser (`computeCredits` in `app.js`) so
   changing the billing model recomputes instantly with no re-run. `CreditEstimator` mirrors the
   same maths in C# for unit tests.
+- **Static embeddings** (`Services/Embeddings`): the app loads a deterministic, frequency-ordered
+  subset of 10,000 GloVe 6B 50-dimensional word vectors. It calculates cosine similarity,
+  relationship angles, and analogy rankings locally. The source vocabulary has 400,000 words,
+  so the UI labels every ranking as limited to the bundled vocabulary. Run
+  `tools/Build-EmbeddingSubset.ps1` to recreate the asset from the verified source archive.
+- **Live embeddings** (`Services/Embeddings`): when the Azure endpoint and embedding deployment
+  are configured, the server batches four texts into one authenticated Azure request. It keeps
+  full vectors on the server and returns previews, pairwise similarities, measured angles, and
+  an explicitly experimental vector-arithmetic comparison. Opening the modal does not call Azure;
+  the user must select **Run live Azure model**.
 
 ---
 
@@ -389,10 +411,13 @@ src/TokensAndCredits.Web/
   Services/Image/               gpt-image-1.5 generation + image token-usage extraction
   Services/Credits/             AI-credit rate options + CreditEstimator (parity tests)
   Services/CacheDemo/           prompt-cache demonstration
+  Services/Embeddings/          local GloVe loading, vector maths + analogy search
+  Resources/embeddings/         deterministic GloVe subset, manifest + dataset license
   wwwroot/                      single-page UI (index.html, app.js, styles.css)
 tests/TokensAndCredits.Web.Tests/   xUnit tests (tokenizer/merge trace, Qwen, streaming usage,
-                                    token explainer, credit estimator + rate catalogue)
-tests/js/credits.test.mjs           node test for the client-side credit maths
+                                    token explainer, credits + static embeddings)
+tests/js/                           node tests for client-side maths, rendering contracts + copy
+tools/                              deterministic embedding subset build script
 ```
 
 ---
@@ -405,3 +430,8 @@ The bundled Qwen tokenizer data in `src/TokensAndCredits.Web/Resources/qwen`
 (`vocab.json`, `merges.txt`, `tokenizer_config.json`) is from
 [Qwen/Qwen3-0.6B](https://huggingface.co/Qwen/Qwen3-0.6B) and is licensed under
 Apache-2.0; it is redistributed here for exact local tokenization of Qwen models.
+
+The bundled GloVe subset in `src/TokensAndCredits.Web/Resources/embeddings` is derived from
+GloVe 6B 50d, trained on Wikipedia 2014 and Gigaword 5. The vectors are distributed under the
+[Open Data Commons PDDL 1.0](src/TokensAndCredits.Web/Resources/embeddings/LICENSE-PDDL-1.0.txt).
+The manifest records the source URL, subset rule, citation, and checksums.

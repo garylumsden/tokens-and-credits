@@ -7,6 +7,7 @@ using TokensAndCredits.Web.Services.CacheDemo;
 using TokensAndCredits.Web.Services.Catalog;
 using TokensAndCredits.Web.Services.Chat;
 using TokensAndCredits.Web.Services.Credits;
+using TokensAndCredits.Web.Services.Embeddings;
 using TokensAndCredits.Web.Services.Image;
 using TokensAndCredits.Web.Services.Tokenize;
 
@@ -44,6 +45,20 @@ builder.Services.AddSingleton<TokenAnalyzer>();
 builder.Services.AddSingleton<TokenExplainer>();
 builder.Services.AddSingleton<MergeTracer>();
 
+// Bundled static embeddings
+builder.Services.AddSingleton(services =>
+{
+    var environment = services.GetRequiredService<IHostEnvironment>();
+    var assetPath = Path.Combine(
+        environment.ContentRootPath,
+        "Resources",
+        "embeddings",
+        EmbeddingStore.AssetFileName);
+    return EmbeddingStore.Load(assetPath);
+});
+builder.Services.AddSingleton<EmbeddingAnalogyService>();
+builder.Services.AddSingleton<IAzureEmbeddingService, AzureEmbeddingService>();
+
 // Model catalog (Azure deployments + local discovery)
 builder.Services.AddSingleton<AzureDeploymentSource>();
 builder.Services.AddSingleton<FoundryLocalSource>();
@@ -73,6 +88,7 @@ builder.Services.AddSingleton<CacheDemoService>();
 var app = builder.Build();
 
 ValidateConfiguration(app);
+_ = app.Services.GetRequiredService<EmbeddingStore>();
 
 app.UseSecurityHeaders();
 app.UseDefaultFiles();
@@ -86,11 +102,13 @@ static void ValidateConfiguration(WebApplication app)
     var options = app.Services.GetRequiredService<IOptions<AzureFoundryOptions>>().Value;
     var logger = app.Logger;
 
-    if (!string.IsNullOrWhiteSpace(options.Endpoint) && options.Deployments.Count == 0)
+    if (!string.IsNullOrWhiteSpace(options.Endpoint)
+        && options.Deployments.Count == 0
+        && string.IsNullOrWhiteSpace(options.EmbeddingDeployment))
     {
         // Endpoint set but nothing to call: fail closed rather than start half-configured.
         throw new InvalidOperationException(
-            "AzureFoundry:Endpoint is set but no deployments are configured. Add AzureFoundry:Deployments or clear the endpoint.");
+            "AzureFoundry:Endpoint is set but no deployments are configured. Add a chat or embedding deployment, or clear the endpoint.");
     }
 
     if (options.IsConfigured)
@@ -99,6 +117,11 @@ static void ValidateConfiguration(WebApplication app)
     }
     else
     {
-        logger.LogInformation("Azure Foundry not configured; running with Foundry Local models only.");
+        logger.LogInformation("Azure Foundry chat is not configured; chat uses local models only.");
+    }
+
+    if (options.IsEmbeddingConfigured)
+    {
+        logger.LogInformation("Azure Foundry live embeddings are configured.");
     }
 }

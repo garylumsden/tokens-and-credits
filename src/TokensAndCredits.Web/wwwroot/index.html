@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>AI Tokens &amp; AI Credits — token + usage + credit breakdown</title>
     <link rel="stylesheet" href="vendor/katex/katex.min.css?v=0.18.1" />
-    <link rel="stylesheet" href="styles.css?v=math-1" />
+    <link rel="stylesheet" href="styles.css?v=embeddings-1" />
 </head>
 <body>
     <header class="app-header">
@@ -14,7 +14,10 @@
                 <h1>AI Tokens &amp; AI Credits</h1>
                 <p class="subtitle">See exactly which part of your prompt is which token, where the tokens go, and what they'd cost in AI Credits.</p>
             </div>
-            <button id="explainerOpen" class="ghost-button" type="button">&#9654; How tokenisation works</button>
+            <div class="header-actions">
+                <button id="embeddingOpen" class="ghost-button embedding-button" type="button">&#10022; How language becomes geometry</button>
+                <button id="explainerOpen" class="ghost-button" type="button">&#9654; How tokenisation works</button>
+            </div>
         </div>
     </header>
 
@@ -186,8 +189,43 @@
         </div>
     </div>
 
+    <div id="embeddingExplainer" class="modal-overlay hidden" role="dialog" aria-modal="true"
+         aria-labelledby="embeddingTitle" aria-describedby="embeddingIntro">
+        <div class="modal embedding-modal">
+            <div class="modal-head">
+                <div>
+                    <h2 id="embeddingTitle">How language becomes geometry</h2>
+                    <p class="embedding-kicker">A real calculation with static word embeddings</p>
+                </div>
+                <button id="embeddingClose" class="icon-button" type="button" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body embedding-body">
+                <blockquote class="firth-quote">
+                    <p>&ldquo;You shall know a word by the company it keeps!&rdquo;</p>
+                    <cite>J. R. Firth, 1957</cite>
+                </blockquote>
+                <p id="embeddingIntro" class="modal-intro">
+                    Training finds patterns in which words appear together. Nobody labels the analogy.
+                    Yet some relationships emerge as similar directions between vectors.
+                </p>
+                <div id="embeddingSteps" class="embedding-steps" role="tablist" aria-label="Embedding explainer steps"></div>
+                <p id="embeddingCaption" class="explainer-caption"></p>
+                <div id="embeddingStage" class="embedding-stage" aria-live="polite"></div>
+                <p id="embeddingStatus" class="embedding-status" role="status"></p>
+            </div>
+            <div class="modal-foot">
+                <div id="embeddingProvenance" class="embedding-provenance"></div>
+                <div class="modal-actions">
+                    <button id="embeddingPrev" type="button">Back</button>
+                    <button id="embeddingRestart" type="button">&#8635; Restart</button>
+                    <button id="embeddingNext" type="button" class="primary">Next</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="vendor/katex/katex.min.js?v=0.18.1"></script>
     <script src="vendor/katex/contrib/auto-render.min.js?v=0.18.1"></script>
-    <script src="app.js?v=math-1"></script>
+    <script src="app.js?v=embeddings-1"></script>
 </body>
 </html>

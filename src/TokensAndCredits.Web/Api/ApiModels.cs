@@ -1,3 +1,4 @@
+using TokensAndCredits.Web.Services.Embeddings;
 using TokensAndCredits.Web.Services.Models;
 
 namespace TokensAndCredits.Web.Api;
@@ -33,6 +34,14 @@ public sealed record MergePhraseRequest(string ModelId, string? Phrase);
 
 /// <summary>Image generation request (local prompt tokenization + live image model call).</summary>
 public sealed record GenerateImageRequest(string ModelId, string Prompt, string Size, string Quality);
+
+/// <summary>Static embedding analogy and relationship request.</summary>
+public sealed record EmbeddingAnalogyRequest(
+    string? PositiveA,
+    string? Negative,
+    string? PositiveB,
+    string? RelationFrom,
+    string? RelationTo);
 
 // ----- Responses -----
 
@@ -85,3 +94,29 @@ public sealed record GenerateImageResponse(
     string ImageMediaType,
     ImageLocalAnalysis Local,
     ImageUsageBreakdown Usage);
+
+public sealed record EmbeddingManifestResponse(
+    string Origin,
+    string Dataset,
+    int Dimensions,
+    int VocabularyCount);
+
+public sealed record EmbeddingWordsResponse(
+    string Origin,
+    string Dataset,
+    int Dimensions,
+    int VocabularyCount,
+    string Query,
+    IReadOnlyList<string> Words);
+
+public sealed record EmbeddingAnalogyResponse(
+    string Origin,
+    string Dataset,
+    int Dimensions,
+    int VocabularyCount,
+    string Expression,
+    IReadOnlyList<EmbeddingCandidate> Candidates,
+    EmbeddingRelationship Relationship,
+    IReadOnlyDictionary<string, IReadOnlyList<float>> VectorPreviews);
+
+public sealed record EmbeddingErrorResponse(string Code, string Message);

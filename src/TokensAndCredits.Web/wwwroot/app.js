@@ -5,6 +5,8 @@ const state = {
     creditRates: null,
     billingModelId: null,
     lastUsage: null,
+    embeddingManifest: null,
+    embeddingResult: null,
 };
 
 const el = (id) => document.getElementById(id);
@@ -1919,6 +1921,552 @@ function wireExplainer() {
     });
 }
 
+// ---- Static word embeddings explainer ----
+
+const EMBEDDING_PRESETS = [
+    {
+        label: "royalty",
+        positiveA: "king",
+        negative: "man",
+        positiveB: "woman",
+        relationFrom: "king",
+        relationTo: "queen",
+    },
+    {
+        label: "family",
+        positiveA: "father",
+        negative: "man",
+        positiveB: "woman",
+        relationFrom: "father",
+        relationTo: "mother",
+    },
+    {
+        label: "capitals",
+        positiveA: "paris",
+        negative: "france",
+        positiveB: "italy",
+        relationFrom: "paris",
+        relationTo: "rome",
+    },
+    {
+        label: "comparison",
+        positiveA: "bigger",
+        negative: "big",
+        positiveB: "small",
+        relationFrom: "bigger",
+        relationTo: "smaller",
+    },
+];
+
+const embeddingDemo = {
+    index: 0,
+    request: { ...EMBEDDING_PRESETS[0] },
+    loading: false,
+};
+
+function makeNode(tag, className, text) {
+    const node = document.createElement(tag);
+    if (className) {
+        node.className = className;
+    }
+    if (text !== undefined) {
+        node.textContent = text;
+    }
+    return node;
+}
+
+function embeddingDatasetLabel() {
+    return state.embeddingManifest?.dataset || state.embeddingResult?.dataset || "bundled static embeddings";
+}
+
+function embeddingDimension() {
+    return state.embeddingManifest?.dimensions || state.embeddingResult?.dimensions || 50;
+}
+
+function embeddingVocabularyCount() {
+    return state.embeddingManifest?.vocabularyCount || state.embeddingResult?.vocabularyCount || 0;
+}
+
+function buildContextStage(stage) {
+    const layout = makeNode("div", "context-story");
+    const copy = makeNode("div", "context-copy");
+    copy.append(
+        makeNode("h3", "", "Meaning starts as a pattern"),
+        makeNode(
+            "p",
+            "",
+            "A static embedding model examines which words share a context. Similar context patterns pull words into related parts of a mathematical space.",
+        ),
+    );
+
+    const examples = makeNode("div", "context-windows");
+    [
+        ["The", "king", "addressed the royal court."],
+        ["The", "queen", "addressed the royal court."],
+        ["Her", "mother", "cared for the family."],
+        ["His", "father", "cared for the family."],
+    ].forEach(([prefix, word, suffix]) => {
+        const row = makeNode("p", "context-window");
+        row.append(
+            document.createTextNode(`${prefix} `),
+            makeNode("mark", "", word),
+            document.createTextNode(` ${suffix}`),
+        );
+        examples.appendChild(row);
+    });
+
+    const insight = makeNode("div", "emergence-note");
+    insight.append(
+        makeNode("strong", "", "The key point"),
+        makeNode(
+            "span",
+            "",
+            "The training data contains sentences, not a rule that says king - man + woman = queen.",
+        ),
+    );
+    copy.appendChild(insight);
+    layout.append(copy, examples);
+    stage.appendChild(layout);
+}
+
+function vectorPreviewFor(word) {
+    const previews = state.embeddingResult?.vectorPreviews || {};
+    const direct = previews[word];
+    if (Array.isArray(direct)) {
+        return direct;
+    }
+
+    const matched = Object.entries(previews).find(([key]) => key.toLowerCase() === word.toLowerCase());
+    return matched && Array.isArray(matched[1]) ? matched[1] : [];
+}
+
+function buildVectorStage(stage) {
+    const intro = makeNode(
+        "p",
+        "stage-lead",
+        `Each word is represented by ${embeddingDimension()} learned values. These previews show real values from ${embeddingDatasetLabel()}.`,
+    );
+    const list = makeNode("div", "vector-list");
+    const words = [
+        embeddingDemo.request.positiveA,
+        embeddingDemo.request.negative,
+        embeddingDemo.request.positiveB,
+        embeddingDemo.request.relationTo,
+    ];
+
+    [...new Set(words)].forEach((word) => {
+        const row = makeNode("div", "vector-row");
+        const label = makeNode("strong", "vector-word", word);
+        const values = vectorPreviewFor(word);
+        const preview = values.length > 0
+            ? `[${values.map((value) => Number(value).toFixed(4)).join(", ")}, ...]`
+            : `[${embeddingDimension()} learned values]`;
+        row.append(label, makeNode("code", "vector-values", preview));
+        list.appendChild(row);
+    });
+
+    const note = makeNode(
+        "p",
+        "stage-note",
+        "A single value has no guaranteed human-readable meaning. Relationships appear across the vector as a whole.",
+    );
+    stage.append(intro, list, note);
+}
+
+function relationshipValues() {
+    const result = state.embeddingResult || {};
+    const relationship = result.relationship || {};
+    return {
+        cosine: Number(result.relationshipCosine ?? relationship.cosine ?? 0),
+        angle: Number(result.relationshipAngleDegrees ?? relationship.angleDegrees ?? 0),
+    };
+}
+
+function buildRelationshipDiagram() {
+    const values = relationshipValues();
+    const panel = makeNode("div", "relationship-visual");
+    const canvas = makeNode("div", "relation-canvas");
+    const first = makeNode("div", "relation-vector relation-vector-primary");
+    const second = makeNode("div", "relation-vector relation-vector-secondary");
+    second.style.setProperty("--relation-angle", `${-values.angle}deg`);
+    first.appendChild(makeNode(
+        "span",
+        "relation-label",
+        `${embeddingDemo.request.negative} \u2192 ${embeddingDemo.request.positiveB}`,
+    ));
+    second.appendChild(makeNode(
+        "span",
+        "relation-label",
+        `${embeddingDemo.request.relationFrom} \u2192 ${embeddingDemo.request.relationTo}`,
+    ));
+    canvas.append(first, second, makeNode("span", "relation-origin", ""));
+
+    const metrics = makeNode("div", "relationship-metrics");
+    const cosine = makeNode("div", "relationship-metric");
+    cosine.append(
+        makeNode("span", "", "Direction cosine"),
+        makeNode("strong", "", values.cosine.toFixed(3)),
+    );
+    const angle = makeNode("div", "relationship-metric");
+    angle.append(
+        makeNode("span", "", "Measured angle"),
+        makeNode("strong", "", `${values.angle.toFixed(1)}\u00B0`),
+    );
+    metrics.append(cosine, angle);
+    panel.append(canvas, metrics);
+    return panel;
+}
+
+function buildRelationshipStage(stage) {
+    const heading = makeNode("div", "stage-heading");
+    heading.append(
+        makeNode("h3", "", "Compare two relationship directions"),
+        makeNode(
+            "p",
+            "",
+            "Subtracting two word vectors creates a direction. Similar relationships can point in similar directions.",
+        ),
+    );
+    stage.append(heading, buildRelationshipDiagram());
+
+    const note = makeNode(
+        "p",
+        "stage-note",
+        "This view draws only the measured angle between two high-dimensional directions. It is not a map of the full embedding space.",
+    );
+    stage.appendChild(note);
+}
+
+function embeddingCandidates() {
+    return state.embeddingResult?.candidates || state.embeddingResult?.rankedCandidates || [];
+}
+
+function renderCandidateRanking() {
+    const panel = makeNode("div", "analogy-results");
+    panel.appendChild(makeNode("h3", "", "Nearest in the bundled vocabulary"));
+    const candidates = embeddingCandidates();
+    if (candidates.length === 0) {
+        panel.appendChild(makeNode("p", "stage-note", "Run the analogy to see its observed nearest words."));
+        return panel;
+    }
+
+    const list = makeNode("ol", "candidate-ranking");
+    const maxScore = Math.max(...candidates.map((candidate) => Number(candidate.similarity ?? candidate.score ?? 0)), 0.01);
+    candidates.forEach((candidate) => {
+        const word = candidate.word || candidate.text || "";
+        const score = Number(candidate.similarity ?? candidate.score ?? 0);
+        const item = makeNode("li", "candidate-result");
+        const line = makeNode("div", "candidate-line");
+        line.append(
+            makeNode("strong", "", word),
+            makeNode("span", "", score.toFixed(3)),
+        );
+        const track = makeNode("div", "candidate-track");
+        const bar = makeNode("span", "candidate-bar");
+        bar.style.setProperty("--candidate-scale", String(Math.max(0, Math.min(1, score / maxScore))));
+        track.appendChild(bar);
+        item.append(line, track);
+        list.appendChild(item);
+    });
+    panel.appendChild(list);
+    return panel;
+}
+
+function inputField(id, label, value) {
+    const wrap = makeNode("label", "analogy-field");
+    wrap.htmlFor = id;
+    wrap.append(
+        makeNode("span", "", label),
+        makeNode("input", "", undefined),
+    );
+    const input = wrap.lastElementChild;
+    input.id = id;
+    input.value = value;
+    input.maxLength = 64;
+    input.autocomplete = "off";
+    input.spellcheck = false;
+    return wrap;
+}
+
+function readAnalogyForm() {
+    return {
+        positiveA: el("embeddingPositiveA").value.trim().toLowerCase(),
+        negative: el("embeddingNegative").value.trim().toLowerCase(),
+        positiveB: el("embeddingPositiveB").value.trim().toLowerCase(),
+        relationFrom: el("embeddingRelationFrom").value.trim().toLowerCase(),
+        relationTo: el("embeddingRelationTo").value.trim().toLowerCase(),
+    };
+}
+
+function buildAnalogyStage(stage) {
+    const presets = makeNode("div", "analogy-presets");
+    presets.appendChild(makeNode("span", "preset-label", "Published-style examples"));
+    EMBEDDING_PRESETS.forEach((preset) => {
+        const button = makeNode("button", "preset-button", preset.label);
+        button.type = "button";
+        button.classList.toggle(
+            "active",
+            preset.positiveA === embeddingDemo.request.positiveA
+                && preset.negative === embeddingDemo.request.negative
+                && preset.positiveB === embeddingDemo.request.positiveB,
+        );
+        button.addEventListener("click", () => {
+            embeddingDemo.request = { ...preset };
+            runEmbeddingAnalogy(embeddingDemo.request);
+        });
+        presets.appendChild(button);
+    });
+
+    const workspace = makeNode("div", "analogy-workspace");
+    const lab = makeNode("form", "analogy-lab");
+    lab.appendChild(makeNode("h3", "", "Run the arithmetic"));
+
+    const equation = makeNode("div", "analogy-equation");
+    equation.append(
+        inputField("embeddingPositiveA", "Add", embeddingDemo.request.positiveA),
+        makeNode("span", "equation-operator", "\u2212"),
+        inputField("embeddingNegative", "Subtract", embeddingDemo.request.negative),
+        makeNode("span", "equation-operator", "+"),
+        inputField("embeddingPositiveB", "Add", embeddingDemo.request.positiveB),
+    );
+
+    const comparison = makeNode("div", "relation-inputs");
+    comparison.append(
+        makeNode("span", "relation-input-label", "Compare that direction with"),
+        inputField("embeddingRelationFrom", "From", embeddingDemo.request.relationFrom),
+        makeNode("span", "relation-arrow", "\u2192"),
+        inputField("embeddingRelationTo", "To", embeddingDemo.request.relationTo),
+    );
+
+    const run = makeNode("button", "primary analogy-run", embeddingDemo.loading ? "Calculating..." : "Run real vector maths");
+    run.type = "submit";
+    run.disabled = embeddingDemo.loading;
+    lab.append(equation, comparison, run);
+    lab.addEventListener("submit", (event) => {
+        event.preventDefault();
+        runEmbeddingAnalogy(readAnalogyForm());
+    });
+
+    workspace.append(lab, renderCandidateRanking());
+    const limitation = makeNode("div", "embedding-limitation");
+    limitation.append(
+        makeNode("strong", "", "Observed, not scripted."),
+        document.createTextNode(
+            " The app searches every word in its bundled 10,000-word vocabulary. A different dataset or vocabulary can produce a different result.",
+        ),
+    );
+    stage.append(presets, workspace, limitation);
+}
+
+function buildBridgeStage(stage) {
+    const pipeline = makeNode("div", "llm-pipeline");
+    ["text", "tokens", "contextual vectors", "transformer layers", "next-token scores"].forEach((label, index, labels) => {
+        pipeline.appendChild(makeNode("span", "pipeline-step", label));
+        if (index < labels.length - 1) {
+            pipeline.appendChild(makeNode("span", "pipeline-arrow", "\u2192"));
+        }
+    });
+
+    const comparison = makeNode("div", "embedding-comparison");
+    const staticSide = makeNode("section", "");
+    staticSide.append(
+        makeNode("h3", "", "Static embeddings"),
+        makeNode("p", "", "One fixed vector per word."),
+        makeNode("p", "", "Some relationships appear as reusable directions."),
+    );
+    const modernSide = makeNode("section", "");
+    modernSide.append(
+        makeNode("h3", "", "Modern LLMs"),
+        makeNode("p", "", "A token representation changes with its context."),
+        makeNode("p", "", "Attention and learned transformations update it through every layer."),
+    );
+    comparison.append(staticSide, modernSide);
+
+    const conclusion = makeNode("p", "bridge-conclusion");
+    conclusion.append(
+        makeNode("strong", "", "The genesis, not the full mechanism. "),
+        document.createTextNode(
+            "Static embeddings make the early geometric idea visible. Transformers retain the use of learned vector representations but operate with context and many deeper transformations.",
+        ),
+    );
+    stage.append(pipeline, comparison, conclusion);
+}
+
+const EMBEDDING_STEPS = [
+    {
+        label: "Context",
+        caption: "Words that occur in similar company develop related numerical representations.",
+        build: buildContextStage,
+    },
+    {
+        label: "Vectors",
+        caption: "The model turns each vocabulary word into one fixed point with many learned coordinates.",
+        build: buildVectorStage,
+    },
+    {
+        label: "Relationships",
+        caption: "Vector subtraction exposes a direction between two words. Some relationship directions align.",
+        build: buildRelationshipStage,
+    },
+    {
+        label: "Word arithmetic",
+        caption: "Now calculate an analogy and search the complete bundled vocabulary. The result is observed, not forced.",
+        build: buildAnalogyStage,
+    },
+    {
+        label: "LLM bridge",
+        caption: "Modern LLMs extend the vector idea with tokens, context, attention, and repeated transformations.",
+        build: buildBridgeStage,
+    },
+];
+
+function renderEmbeddingSteps() {
+    const steps = el("embeddingSteps");
+    steps.replaceChildren();
+    EMBEDDING_STEPS.forEach((step, index) => {
+        const button = makeNode("button", "embedding-step", step.label);
+        button.type = "button";
+        button.setAttribute("role", "tab");
+        button.setAttribute("aria-selected", String(index === embeddingDemo.index));
+        button.classList.toggle("active", index === embeddingDemo.index);
+        button.addEventListener("click", () => embeddingGo(index));
+        steps.appendChild(button);
+    });
+}
+
+function renderEmbeddingProvenance() {
+    const node = el("embeddingProvenance");
+    const vocabulary = embeddingVocabularyCount();
+    node.textContent = state.embeddingManifest
+        ? `${embeddingDatasetLabel()} \u00B7 ${embeddingDimension()} dimensions \u00B7 ${vocabulary.toLocaleString()} bundled words \u00B7 local`
+        : "Loading the local embedding dataset...";
+}
+
+function renderEmbeddingStage() {
+    renderEmbeddingSteps();
+    const step = EMBEDDING_STEPS[embeddingDemo.index];
+    el("embeddingCaption").textContent = step.caption;
+    const stage = el("embeddingStage");
+    stage.replaceChildren();
+    step.build(stage);
+    el("embeddingPrev").disabled = embeddingDemo.index === 0;
+    el("embeddingNext").disabled = embeddingDemo.index === EMBEDDING_STEPS.length - 1;
+    renderEmbeddingProvenance();
+}
+
+function setEmbeddingStatus(message, isError = false) {
+    const node = el("embeddingStatus");
+    node.textContent = message || "";
+    node.classList.toggle("error", isError);
+}
+
+async function loadEmbeddingManifest() {
+    if (state.embeddingManifest) {
+        return;
+    }
+    const response = await fetch("/api/embeddings/manifest");
+    if (!response.ok) {
+        throw new Error("The local embedding dataset could not be loaded.");
+    }
+    state.embeddingManifest = await response.json();
+}
+
+async function runEmbeddingAnalogy(request, rerender = true) {
+    embeddingDemo.request = { ...request };
+    embeddingDemo.loading = true;
+    setEmbeddingStatus("Calculating across the bundled vocabulary...");
+    if (rerender) {
+        renderEmbeddingStage();
+    }
+
+    try {
+        state.embeddingResult = await postJson("/api/embeddings/analogy", request);
+        setEmbeddingStatus(
+            `Calculated ${request.positiveA} \u2212 ${request.negative} + ${request.positiveB} across ${embeddingVocabularyCount().toLocaleString()} words.`,
+        );
+    } catch (error) {
+        setEmbeddingStatus(error.message, true);
+    } finally {
+        embeddingDemo.loading = false;
+        if (rerender) {
+            renderEmbeddingStage();
+        }
+    }
+}
+
+function embeddingGo(index) {
+    embeddingDemo.index = Math.max(0, Math.min(EMBEDDING_STEPS.length - 1, index));
+    renderEmbeddingStage();
+}
+
+async function openEmbeddingExplainer() {
+    embeddingDemo.index = 0;
+    embeddingDemo.request = { ...EMBEDDING_PRESETS[0] };
+    el("embeddingExplainer").classList.remove("hidden");
+    document.body.classList.add("modal-open");
+    el("embeddingClose").focus();
+    renderEmbeddingStage();
+
+    try {
+        await loadEmbeddingManifest();
+        await runEmbeddingAnalogy(embeddingDemo.request, false);
+        renderEmbeddingStage();
+    } catch (error) {
+        setEmbeddingStatus(error.message, true);
+    }
+}
+
+function closeEmbeddingExplainer() {
+    el("embeddingExplainer").classList.add("hidden");
+    document.body.classList.remove("modal-open");
+    el("embeddingOpen").focus();
+}
+
+function trapEmbeddingFocus(event) {
+    if (event.key !== "Tab" || el("embeddingExplainer").classList.contains("hidden")) {
+        return;
+    }
+    const focusable = [...el("embeddingExplainer").querySelectorAll(
+        "button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex='-1'])",
+    )];
+    if (focusable.length === 0) {
+        return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
+}
+
+function wireEmbeddingExplainer() {
+    el("embeddingOpen").addEventListener("click", openEmbeddingExplainer);
+    el("embeddingClose").addEventListener("click", closeEmbeddingExplainer);
+    el("embeddingExplainer").addEventListener("click", (event) => {
+        if (event.target === el("embeddingExplainer")) {
+            closeEmbeddingExplainer();
+        }
+    });
+    el("embeddingPrev").addEventListener("click", () => embeddingGo(embeddingDemo.index - 1));
+    el("embeddingNext").addEventListener("click", () => embeddingGo(embeddingDemo.index + 1));
+    el("embeddingRestart").addEventListener("click", () => {
+        embeddingDemo.index = 0;
+        embeddingDemo.request = { ...EMBEDDING_PRESETS[0] };
+        runEmbeddingAnalogy(embeddingDemo.request);
+    });
+    document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !el("embeddingExplainer").classList.contains("hidden")) {
+            closeEmbeddingExplainer();
+            return;
+        }
+        trapEmbeddingFocus(event);
+    });
+}
+
 // Pre-baked example prompts spanning creative, coding and scientific-research registers, with a
 // complexity rating shown in the dropdown. Chosen to exercise tokenization: multilingual scripts,
 // emoji, symbols, code, and dense technical vocabulary.
@@ -2028,6 +2576,7 @@ async function init() {
     el("githubOverhead").addEventListener("input", renderCredits);
     el("studioOverhead").addEventListener("input", renderCredits);
     wireExplainer();
+    wireEmbeddingExplainer();
 
     loadCreditRates();
 

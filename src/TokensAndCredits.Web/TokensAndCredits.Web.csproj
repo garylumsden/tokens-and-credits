@@ -30,6 +30,8 @@
          picked up as Content by the Web SDK, so only update their copy behaviour. -->
     <Content Update="Resources\qwen\*.json" CopyToOutputDirectory="PreserveNewest" />
     <Content Include="Resources\qwen\merges.txt" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Resources\embeddings\*.gz" CopyToOutputDirectory="PreserveNewest" />
+    <Content Include="Resources\embeddings\LICENSE-PDDL-1.0.txt" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

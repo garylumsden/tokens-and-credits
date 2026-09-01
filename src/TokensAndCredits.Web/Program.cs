@@ -7,6 +7,7 @@ using TokensAndCredits.Web.Services.CacheDemo;
 using TokensAndCredits.Web.Services.Catalog;
 using TokensAndCredits.Web.Services.Chat;
 using TokensAndCredits.Web.Services.Credits;
+using TokensAndCredits.Web.Services.Embeddings;
 using TokensAndCredits.Web.Services.Image;
 using TokensAndCredits.Web.Services.Tokenize;
 
@@ -44,6 +45,19 @@ builder.Services.AddSingleton<TokenAnalyzer>();
 builder.Services.AddSingleton<TokenExplainer>();
 builder.Services.AddSingleton<MergeTracer>();
 
+// Bundled static embeddings
+builder.Services.AddSingleton(services =>
+{
+    var environment = services.GetRequiredService<IHostEnvironment>();
+    var assetPath = Path.Combine(
+        environment.ContentRootPath,
+        "Resources",
+        "embeddings",
+        EmbeddingStore.AssetFileName);
+    return EmbeddingStore.Load(assetPath);
+});
+builder.Services.AddSingleton<EmbeddingAnalogyService>();
+
 // Model catalog (Azure deployments + local discovery)
 builder.Services.AddSingleton<AzureDeploymentSource>();
 builder.Services.AddSingleton<FoundryLocalSource>();
@@ -73,6 +87,7 @@ builder.Services.AddSingleton<CacheDemoService>();
 var app = builder.Build();
 
 ValidateConfiguration(app);
+_ = app.Services.GetRequiredService<EmbeddingStore>();
 
 app.UseSecurityHeaders();
 app.UseDefaultFiles();

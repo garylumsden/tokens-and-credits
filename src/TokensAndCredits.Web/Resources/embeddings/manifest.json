@@ -1,0 +1,18 @@
+{
+  "dataset": "GloVe 6B 50d",
+  "method": "GloVe static word embeddings",
+  "description": "Uncased vectors trained from Wikipedia 2014 and Gigaword 5 word co-occurrence statistics.",
+  "dimensions": 50,
+  "sourceVocabularyCount": 400000,
+  "vocabularyCount": 10000,
+  "subsetRule": "The first 10,000 entries in the published frequency-ordered vocabulary. No words were added or removed.",
+  "sourceUrl": "https://github.com/RaRe-Technologies/gensim-data/releases/download/glove-wiki-gigaword-50/glove-wiki-gigaword-50.gz",
+  "sourceMd5": "c289bc5d7f2f02c6dc9f2f9b67641813",
+  "assetFile": "glove-wiki-gigaword-50.top10000.txt.gz",
+  "assetSha256": "d4dce6d7216389f6de7ba9a026f2bdd18d4c77ac287ddd4e6f54643f645ce552",
+  "license": "Open Data Commons Public Domain Dedication and License 1.0",
+  "licenseUrl": "https://opendatacommons.org/licenses/pddl/1-0/",
+  "licenseEvidence": "https://raw.githubusercontent.com/RaRe-Technologies/gensim-data/master/list.json",
+  "projectUrl": "https://nlp.stanford.edu/projects/glove/",
+  "citation": "Jeffrey Pennington, Richard Socher, and Christopher D. Manning. GloVe: Global Vectors for Word Representation. EMNLP 2014."
+}

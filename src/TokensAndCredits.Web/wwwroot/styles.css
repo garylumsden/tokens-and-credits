@@ -974,6 +974,39 @@ body.modal-open { overflow: hidden; }
     content: " \00B7 unavailable";
 }
 
+.embedding-terminology-control {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 10px;
+    margin: -4px 0 10px;
+    color: var(--muted);
+    font-size: 0.76rem;
+}
+
+.embedding-terminology-switch {
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+}
+
+.embedding-terminology-option {
+    padding: 5px 9px;
+    background: transparent;
+    border-color: transparent;
+    color: var(--muted);
+    font-size: 0.74rem;
+}
+
+.embedding-terminology-option.active {
+    background: var(--card-2);
+    border-color: var(--border);
+    color: var(--text);
+}
+
 .embedding-body {
     display: flex;
     flex: 1;
@@ -1197,6 +1230,8 @@ body.modal-open { overflow: hidden; }
 }
 
 .relation-canvas {
+    --relation-origin-x: 44%;
+    --relation-origin-y: 94%;
     position: relative;
     height: 220px;
     overflow: hidden;
@@ -1210,8 +1245,8 @@ body.modal-open { overflow: hidden; }
 
 .relation-origin {
     position: absolute;
-    top: calc(58% - 5px);
-    left: calc(44% - 5px);
+    top: calc(var(--relation-origin-y) - 5px);
+    left: calc(var(--relation-origin-x) - 5px);
     z-index: 3;
     width: 10px;
     height: 10px;
@@ -1223,8 +1258,8 @@ body.modal-open { overflow: hidden; }
 .relation-vector {
     --relation-angle: 0deg;
     position: absolute;
-    top: 58%;
-    left: 44%;
+    top: var(--relation-origin-y);
+    left: var(--relation-origin-x);
     width: 38%;
     height: 4px;
     background: var(--local);
@@ -1750,6 +1785,12 @@ body.modal-open { overflow: hidden; }
 
     .embedding-source-switch {
         grid-template-columns: 1fr;
+    }
+
+    .embedding-terminology-control {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 5px;
     }
 
     .embedding-steps {

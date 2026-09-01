@@ -2045,6 +2045,7 @@ const LIVE_EMBEDDING_DEFAULTS = {
 const embeddingDemo = {
     index: 0,
     mode: "static",
+    terminology: "technical",
     request: { ...EMBEDDING_PRESETS[0] },
     liveRequest: { ...LIVE_EMBEDDING_DEFAULTS },
     loading: false,
@@ -2081,6 +2082,14 @@ function liveEmbeddingAvailable() {
     return Boolean(liveEmbeddingProvider()?.available);
 }
 
+function usesEmbeddingAnalogy() {
+    return embeddingDemo.terminology === "analogy";
+}
+
+function embeddingCopy(technical, analogy) {
+    return usesEmbeddingAnalogy() ? analogy : technical;
+}
+
 function renderEmbeddingSourceSwitch() {
     const isStatic = embeddingDemo.mode === "static";
     const staticButton = el("embeddingStaticSource");
@@ -2090,12 +2099,30 @@ function renderEmbeddingSourceSwitch() {
     liveButton.classList.toggle("unavailable", state.embeddingProviders && !liveEmbeddingAvailable());
     staticButton.setAttribute("aria-pressed", String(isStatic));
     liveButton.setAttribute("aria-pressed", String(!isStatic));
-    el("embeddingKicker").textContent = isStatic
-        ? "A real calculation with static word embeddings"
-        : "A live semantic comparison with Azure embeddings";
-    el("embeddingIntro").textContent = isStatic
-        ? "Training finds patterns in which words appear together. Nobody labels the analogy. Yet some relationships emerge as similar directions between vectors."
-        : "A modern embedding model turns each complete text into one semantic vector. Change the surrounding words and the measured relationship changes.";
+
+    const technicalButton = el("embeddingTerminologyTechnical");
+    const analogyButton = el("embeddingTerminologyAnalogy");
+    const usesAnalogy = usesEmbeddingAnalogy();
+    technicalButton.classList.toggle("active", !usesAnalogy);
+    analogyButton.classList.toggle("active", usesAnalogy);
+    technicalButton.setAttribute("aria-pressed", String(!usesAnalogy));
+    analogyButton.setAttribute("aria-pressed", String(usesAnalogy));
+
+    el("embeddingTitle").textContent = usesAnalogy
+        ? "How language becomes geometry"
+        : "How text embeddings work";
+    el("embeddingKicker").textContent = embeddingCopy(
+        isStatic ? "Static GloVe word embeddings" : "Azure text embeddings",
+        isStatic ? "A map analogy for static word embeddings" : "A map analogy for Azure text embeddings",
+    );
+    el("embeddingIntro").textContent = embeddingCopy(
+        isStatic
+            ? "GloVe learns one context-independent vector per vocabulary word from global word-word co-occurrence statistics. Some relationships appear as approximately parallel vector offsets."
+            : "An embedding model maps each input text to a high-dimensional vector. Cosine similarity compares the direction of two embedding vectors.",
+        isStatic
+            ? "Analogy: imagine each word as a point on a map. Words used in similar contexts tend to occupy related regions, and some relationships follow similar directions."
+            : "Analogy: imagine each complete text as a point on a map. Texts with related meanings tend to have vectors that point in similar directions.",
+    );
 }
 
 function setEmbeddingMode(mode) {
@@ -2104,13 +2131,18 @@ function setEmbeddingMode(mode) {
     if (mode === "live") {
         setEmbeddingStatus(
             liveEmbeddingAvailable()
-                ? "Ready. Run the Azure model when you want to compare these texts."
-                : "The live embedding model is unavailable. Provision Azure or configure its endpoint and deployment.",
+                ? ""
+                : "The Azure text embedding deployment is not configured.",
             !liveEmbeddingAvailable(),
         );
     } else {
         setEmbeddingStatus("");
     }
+    renderEmbeddingStage();
+}
+
+function setEmbeddingTerminology(terminology) {
+    embeddingDemo.terminology = terminology;
     renderEmbeddingStage();
 }
 
@@ -2123,11 +2155,17 @@ function buildContextStage(stage) {
     const layout = makeNode("div", "context-story");
     const copy = makeNode("div", "context-copy");
     copy.append(
-        makeNode("h3", "", "Meaning starts as a pattern"),
+        makeNode("h3", "", embeddingCopy(
+            "GloVe uses word co-occurrence statistics",
+            "Words learn from the company they keep",
+        )),
         makeNode(
             "p",
             "",
-            "A static embedding model examines which words share a context. Similar context patterns pull words into related parts of a mathematical space.",
+            embeddingCopy(
+                "GloVe learns word vectors from aggregate counts of how often words occur near one another in the training corpus. Each vocabulary word has one context-independent vector.",
+                "Imagine reading many short windows around each word. Words that repeatedly appear in similar company receive locations in related parts of the map.",
+            ),
         ),
     );
 
@@ -2147,16 +2185,6 @@ function buildContextStage(stage) {
         examples.appendChild(row);
     });
 
-    const insight = makeNode("div", "emergence-note");
-    insight.append(
-        makeNode("strong", "", "The key point"),
-        makeNode(
-            "span",
-            "",
-            "The training data contains sentences, not a rule that says king - man + woman = queen.",
-        ),
-    );
-    copy.appendChild(insight);
     layout.append(copy, examples);
     stage.appendChild(layout);
 }
@@ -2181,7 +2209,10 @@ function buildVectorStage(stage) {
     const intro = makeNode(
         "p",
         "stage-lead",
-        `Each word is represented by ${embeddingDimension()} learned values. These previews show real values from ${embeddingDatasetLabel()}.`,
+        embeddingCopy(
+            `Each vocabulary word has a ${embeddingDimension()}-dimensional vector. These rows show the first six coordinates from ${embeddingDatasetLabel()}.`,
+            `Each word has an address with ${embeddingDimension()} coordinates. These rows show the first six coordinates from ${embeddingDatasetLabel()}.`,
+        ),
     );
     const list = makeNode("div", "vector-list");
     const words = [
@@ -2205,7 +2236,10 @@ function buildVectorStage(stage) {
     const note = makeNode(
         "p",
         "stage-note",
-        "A single value has no guaranteed human-readable meaning. Relationships appear across the vector as a whole.",
+        embeddingCopy(
+            "Individual coordinates do not have predefined linguistic meanings. Comparisons use the complete vector.",
+            "No single coordinate has a plain-language meaning. The complete address is what matters.",
+        ),
     );
     stage.append(intro, list, note);
 }
@@ -2241,12 +2275,12 @@ function buildRelationshipDiagram() {
     const metrics = makeNode("div", "relationship-metrics");
     const cosine = makeNode("div", "relationship-metric");
     cosine.append(
-        makeNode("span", "", "Direction cosine"),
+        makeNode("span", "", embeddingCopy("Cosine similarity", "Direction match (cosine)")),
         makeNode("strong", "", values.cosine.toFixed(3)),
     );
     const angle = makeNode("div", "relationship-metric");
     angle.append(
-        makeNode("span", "", "Measured angle"),
+        makeNode("span", "", embeddingCopy("Measured angle", "Angle between directions")),
         makeNode("strong", "", `${values.angle.toFixed(1)}\u00B0`),
     );
     metrics.append(cosine, angle);
@@ -2262,11 +2296,17 @@ function buildRelationshipStage(stage) {
 
     const heading = makeNode("div", "stage-heading");
     heading.append(
-        makeNode("h3", "", "Compare two relationship directions"),
+        makeNode("h3", "", embeddingCopy(
+            "Compare two vector offsets",
+            "Compare two directions on the map",
+        )),
         makeNode(
             "p",
             "",
-            "Subtracting two word vectors creates a direction. Similar relationships can point in similar directions.",
+            embeddingCopy(
+                "Subtracting one word vector from another produces an offset vector. Cosine similarity measures the alignment between two offsets.",
+                "Moving from one word address to another gives a direction. Similar relationships can point in similar directions.",
+            ),
         ),
     );
     stage.append(heading, buildRelationshipDiagram());
@@ -2274,7 +2314,10 @@ function buildRelationshipStage(stage) {
     const note = makeNode(
         "p",
         "stage-note",
-        "This view draws only the measured angle between two high-dimensional directions. It is not a map of the full embedding space.",
+        embeddingCopy(
+            "The diagram shows the measured angle between two high-dimensional offset vectors. It is not a two-dimensional projection of the embedding space.",
+            "This sketch compares two directions. It does not draw the complete word map.",
+        ),
     );
     stage.appendChild(note);
 }
@@ -2285,10 +2328,16 @@ function embeddingCandidates() {
 
 function renderCandidateRanking() {
     const panel = makeNode("div", "analogy-results");
-    panel.appendChild(makeNode("h3", "", "Nearest in the bundled vocabulary"));
+    panel.appendChild(makeNode("h3", "", embeddingCopy(
+        "Nearest neighbours by cosine similarity",
+        "Words closest to the calculated location",
+    )));
     const candidates = embeddingCandidates();
     if (candidates.length === 0) {
-        panel.appendChild(makeNode("p", "stage-note", "Run the analogy to see its observed nearest words."));
+        panel.appendChild(makeNode("p", "stage-note", embeddingCopy(
+            "Run the calculation to rank the nearest vocabulary words.",
+            "Run the experiment to find the closest words on the map.",
+        )));
         return panel;
     }
 
@@ -2347,7 +2396,7 @@ function buildAnalogyStage(stage) {
     }
 
     const presets = makeNode("div", "analogy-presets");
-    presets.appendChild(makeNode("span", "preset-label", "Published-style examples"));
+    presets.appendChild(makeNode("span", "preset-label", "Examples"));
     EMBEDDING_PRESETS.forEach((preset) => {
         const button = makeNode("button", "preset-button", preset.label);
         button.type = "button";
@@ -2366,7 +2415,10 @@ function buildAnalogyStage(stage) {
 
     const workspace = makeNode("div", "analogy-workspace");
     const lab = makeNode("form", "analogy-lab");
-    lab.appendChild(makeNode("h3", "", "Run the arithmetic"));
+    lab.appendChild(makeNode("h3", "", embeddingCopy(
+        "Compute a vector analogy",
+        "Move through the word map",
+    )));
 
     const equation = makeNode("div", "analogy-equation");
     equation.append(
@@ -2385,7 +2437,13 @@ function buildAnalogyStage(stage) {
         inputField("embeddingRelationTo", "To", embeddingDemo.request.relationTo),
     );
 
-    const run = makeNode("button", "primary analogy-run", embeddingDemo.loading ? "Calculating..." : "Run real vector maths");
+    const run = makeNode(
+        "button",
+        "primary analogy-run",
+        embeddingDemo.loading
+            ? "Calculating..."
+            : embeddingCopy("Calculate nearest neighbours", "Find the closest words"),
+    );
     run.type = "submit";
     run.disabled = embeddingDemo.loading;
     lab.append(equation, comparison, run);
@@ -2396,11 +2454,9 @@ function buildAnalogyStage(stage) {
 
     workspace.append(lab, renderCandidateRanking());
     const limitation = makeNode("div", "embedding-limitation");
-    limitation.append(
-        makeNode("strong", "", "Observed, not scripted."),
-        document.createTextNode(
-            " The app searches every word in its bundled 10,000-word vocabulary. A different dataset or vocabulary can produce a different result.",
-        ),
+    limitation.textContent = embeddingCopy(
+        "Candidates are ranked by cosine similarity to the normalized A \u2212 B + C vector. The three input words are excluded.",
+        "Start at A, move away from B, then move toward C. The app lists the closest remaining word addresses.",
     );
     stage.append(presets, workspace, limitation);
 }
@@ -2412,7 +2468,11 @@ function buildBridgeStage(stage) {
     }
 
     const pipeline = makeNode("div", "llm-pipeline");
-    ["text", "tokens", "contextual vectors", "transformer layers", "next-token scores"].forEach((label, index, labels) => {
+    const pipelineLabels = embeddingCopy(
+        ["text", "tokens", "input embeddings", "contextual hidden states", "next-token logits"],
+        ["text", "word pieces", "starting coordinates", "context-shaped coordinates", "next-token choices"],
+    );
+    pipelineLabels.forEach((label, index, labels) => {
         pipeline.appendChild(makeNode("span", "pipeline-step", label));
         if (index < labels.length - 1) {
             pipeline.appendChild(makeNode("span", "pipeline-arrow", "\u2192"));
@@ -2421,24 +2481,38 @@ function buildBridgeStage(stage) {
 
     const comparison = makeNode("div", "embedding-comparison");
     const staticSide = makeNode("section", "");
-    staticSide.append(
-        makeNode("h3", "", "Static embeddings"),
-        makeNode("p", "", "One fixed vector per word."),
-        makeNode("p", "", "Some relationships appear as reusable directions."),
-    );
     const modernSide = makeNode("section", "");
-    modernSide.append(
-        makeNode("h3", "", "Modern LLMs"),
-        makeNode("p", "", "A token representation changes with its context."),
-        makeNode("p", "", "Attention and learned transformations update it through every layer."),
-    );
+    if (usesEmbeddingAnalogy()) {
+        staticSide.append(
+            makeNode("h3", "", "A fixed word map"),
+            makeNode("p", "", "Each vocabulary word has one address."),
+            makeNode("p", "", "The address does not change when the surrounding text changes."),
+        );
+        modernSide.append(
+            makeNode("h3", "", "A changing token map"),
+            makeNode("p", "", "Each token starts with coordinates."),
+            makeNode("p", "", "The model repeatedly updates those coordinates using the surrounding context."),
+        );
+    } else {
+        staticSide.append(
+            makeNode("h3", "", "Static word embeddings"),
+            makeNode("p", "", "One context-independent vector per vocabulary word."),
+            makeNode("p", "", "Vector offsets can encode some syntactic and semantic relationships."),
+        );
+        modernSide.append(
+            makeNode("h3", "", "Transformer language models"),
+            makeNode("p", "", "The model converts tokens to input embeddings."),
+            makeNode("p", "", "Each transformer layer computes context-dependent hidden states for every token."),
+        );
+    }
     comparison.append(staticSide, modernSide);
 
-    const conclusion = makeNode("p", "bridge-conclusion");
-    conclusion.append(
-        makeNode("strong", "", "The genesis, not the full mechanism. "),
-        document.createTextNode(
-            "Static embeddings make the early geometric idea visible. Transformers retain the use of learned vector representations but operate with context and many deeper transformations.",
+    const conclusion = makeNode(
+        "p",
+        "bridge-conclusion",
+        embeddingCopy(
+            "Static word embeddings and transformer hidden states are both vectors, but they are different representations. A transformer computes a hidden state for each token at each layer.",
+            "Both use coordinates, but they are different maps. The static map keeps one address per word; the transformer changes each token's coordinates as it processes context.",
         ),
     );
     stage.append(pipeline, comparison, conclusion);
@@ -2468,11 +2542,17 @@ function appendHighlightedBank(node, text) {
 function buildLiveContextStage(stage) {
     const heading = makeNode("div", "stage-heading");
     heading.append(
-        makeNode("h3", "", "The same word can travel with different company"),
+        makeNode("h3", "", embeddingCopy(
+            "The model embeds each complete input",
+            "Each complete text gets one location",
+        )),
         makeNode(
             "p",
             "",
-            "A live text embedding represents the meaning of the complete input, not a dictionary entry for one isolated word.",
+            embeddingCopy(
+                "The API returns one embedding vector for each input text. It does not return a separate embedding for the highlighted word.",
+                "In this map analogy, the complete text gets a location. The highlighted word does not get a separate pin.",
+            ),
         ),
     );
 
@@ -2501,9 +2581,12 @@ function buildLiveContextStage(stage) {
 
     const note = makeNode("p", "stage-note");
     note.append(
-        makeNode("strong", "", "What the model call tests: "),
+        makeNode("strong", "", embeddingCopy("Expected result: ", "What to look for: ")),
         document.createTextNode(
-            "financial sentences should be more similar to each other than to the river sentences, and vice versa.",
+            embeddingCopy(
+                "each within-topic pair should have a higher cosine similarity than a cross-topic pair.",
+                "the two financial texts should be closer to each other than to the river texts, and vice versa.",
+            ),
         ),
     );
     stage.append(heading, groups, note);
@@ -2537,7 +2620,7 @@ function buildLiveEmptyState(stage, title) {
             "p",
             "",
             liveEmbeddingAvailable()
-                ? "Open Vector experiment, review the four texts, then select Run live Azure model."
+                ? "Run the Azure model in Vector experiment to generate the embeddings."
                 : "Provision the embedding deployment with azd up, or configure the Azure endpoint and deployment.",
         ),
     );
@@ -2554,7 +2637,10 @@ function buildLiveVectorStage(stage) {
     stage.appendChild(makeNode(
         "p",
         "stage-lead",
-        `The Azure model returned ${result.dimensions} values for each complete sentence. Only six values are shown; calculations use the full vectors on the server.`,
+        embeddingCopy(
+            `The Azure embedding model returned a ${result.dimensions}-dimensional vector for each input text. The UI shows the first six coordinates; server-side calculations use all dimensions.`,
+            `Each text received an address with ${result.dimensions} coordinates. The UI shows the first six; the complete address is used for every calculation.`,
+        ),
     ));
     const list = makeNode("div", "vector-list live-vector-list");
     LIVE_TEXT_ROLES.forEach(({ key, label }) => {
@@ -2615,8 +2701,14 @@ function buildLiveRelationshipStage(stage) {
 
     const heading = makeNode("div", "stage-heading");
     heading.append(
-        makeNode("h3", "", "Context changes the neighbourhood"),
-        makeNode("p", "", "Cosine similarity measures how closely the complete sentence vectors point."),
+        makeNode("h3", "", embeddingCopy(
+            "Compare the embedding vectors",
+            "Compare where the text vectors point",
+        )),
+        makeNode("p", "", embeddingCopy(
+            "Cosine similarity compares vector direction. Higher values indicate greater similarity for these embeddings.",
+            "Vectors that point in a similar direction receive a higher match score.",
+        )),
     );
     const cards = makeNode("div", "live-similarity-grid");
     cards.append(
@@ -2630,7 +2722,10 @@ function buildLiveRelationshipStage(stage) {
         makeNode(
             "p",
             "stage-note",
-            "The service produced sentence embeddings. It did not expose a token-level vector for the word bank.",
+            embeddingCopy(
+                "The API returned one embedding for each complete input text. It did not return a token-level representation for bank.",
+                "Each complete text has one map location. The word bank does not have its own separate pin in this result.",
+            ),
         ),
     );
 }
@@ -2671,24 +2766,30 @@ function liveArithmeticValues() {
 function buildLiveExperimentStage(stage) {
     const form = makeNode("form", "live-embedding-form");
     form.append(
-        makeNode("h3", "", "Compare real Azure embeddings"),
+        makeNode("h3", "", embeddingCopy(
+            "Generate and compare Azure text embeddings",
+            "Place four texts on the map",
+        )),
         makeNode(
             "p",
             "stage-note",
-            "The server sends these four texts in one batch. Azure returns one semantic vector for each complete text.",
+            embeddingCopy(
+                "The server sends four input texts in one embeddings request. The API returns one embedding vector per input.",
+                "The model gives each complete text a location represented by a list of coordinates.",
+            ),
         ),
     );
     const fields = makeNode("div", "live-text-grid");
     fields.append(
-        liveTextField("first", "A", "financial meaning"),
-        liveTextField("second", "B", "subtract this financial example"),
-        liveTextField("third", "C", "add the river meaning"),
-        liveTextField("target", "Target", "compare the resulting direction"),
+        liveTextField("first", "A", "first financial input"),
+        liveTextField("second", "B", "subtract this embedding"),
+        liveTextField("third", "C", "add this embedding"),
+        liveTextField("target", "Target", "compare with A \u2212 B + C"),
     );
     const run = makeNode(
         "button",
         "primary live-embedding-run",
-        embeddingDemo.loading ? "Calling Azure..." : "Run live Azure model",
+        embeddingDemo.loading ? "Calling Azure..." : "Generate embeddings",
     );
     run.type = "submit";
     run.disabled = embeddingDemo.loading || !liveEmbeddingAvailable();
@@ -2702,14 +2803,17 @@ function buildLiveExperimentStage(stage) {
     if (state.liveEmbeddingResult) {
         const values = liveArithmeticValues();
         result.append(
-            makeNode("span", "live-call-badge", "Azure model result"),
+            makeNode("span", "live-call-badge", "Azure embeddings result"),
             makeNode("h3", "", "A \u2212 B + C compared with Target"),
             makeNode("strong", "live-experiment-score", values.cosine.toFixed(3)),
             makeNode("p", "", `${values.angle.toFixed(1)}\u00B0 measured angle`),
             makeNode(
                 "p",
                 "stage-note",
-                "This is an experiment, not a promised analogy. Modern embedding models optimize semantic similarity, not classic word arithmetic.",
+                embeddingCopy(
+                    "The server computes A \u2212 B + C from the returned embeddings, then compares that vector with Target by cosine similarity.",
+                    "Start at A, move away from B, then move toward C. The score compares the resulting direction with Target.",
+                ),
             ),
         );
     } else {
@@ -2719,7 +2823,10 @@ function buildLiveExperimentStage(stage) {
                 "p",
                 "stage-note",
                 liveEmbeddingAvailable()
-                    ? "Run the model to reveal the observed similarities and vector experiment."
+                    ? embeddingCopy(
+                        "Generate embeddings to view pairwise cosine similarities and the vector calculation.",
+                        "Generate embeddings to place the texts on the map and compare their directions.",
+                    )
                     : "The Azure endpoint or embedding deployment is not configured.",
             ),
         );
@@ -2732,7 +2839,11 @@ function buildLiveExperimentStage(stage) {
 
 function buildLiveBridgeStage(stage) {
     const pipeline = makeNode("div", "llm-pipeline");
-    ["text", "semantic embedding", "similarity or retrieval", "selected context", "generative model"].forEach((label, index, labels) => {
+    const pipelineLabels = embeddingCopy(
+        ["input text", "embedding model", "embedding vector", "vector index", "retrieved text"],
+        ["input text", "map maker", "text location", "searchable map", "nearby text"],
+    );
+    pipelineLabels.forEach((label, index, labels) => {
         pipeline.appendChild(makeNode("span", "pipeline-step", label));
         if (index < labels.length - 1) {
             pipeline.appendChild(makeNode("span", "pipeline-arrow", "\u2192"));
@@ -2740,11 +2851,19 @@ function buildLiveBridgeStage(stage) {
     });
 
     const comparison = makeNode("div", "embedding-comparison live-bridge-comparison");
-    [
-        ["Static GloVe", "One fixed vector per vocabulary word.", "Makes classic word relationships easy to inspect."],
-        ["Semantic embedding API", "One vector for each complete input text.", "Powers similarity search, clustering, and retrieval."],
-        ["Generative LLM", "Token representations change through transformer layers.", "Uses attention and context to predict or generate tokens."],
-    ].forEach(([title, first, second]) => {
+    const comparisons = embeddingCopy(
+        [
+            ["Static GloVe", "One context-independent vector per vocabulary word.", "Trained from global word-word co-occurrence statistics."],
+            ["Text embedding model", "One vector for each input text.", "Used for similarity, clustering, classification, and retrieval."],
+            ["Generative transformer", "One hidden state per token at each layer.", "Produces next-token logits from contextual hidden states."],
+        ],
+        [
+            ["Fixed word map", "One address for each vocabulary word.", "The address stays the same in every sentence."],
+            ["Text map", "One location for each complete input.", "Nearby locations help find related text."],
+            ["Changing token map", "Each token's coordinates change as context is processed.", "The final coordinates help select the next token."],
+        ],
+    );
+    comparisons.forEach(([title, first, second]) => {
         const section = makeNode("section", "");
         section.append(makeNode("h3", "", title), makeNode("p", "", first), makeNode("p", "", second));
         comparison.appendChild(section);
@@ -2755,50 +2874,98 @@ function buildLiveBridgeStage(stage) {
         makeNode(
             "p",
             "bridge-conclusion",
-            "The live embedding model is modern, but it is not the hidden state of the generative model. It produces a separate vector designed for semantic comparison.",
+            embeddingCopy(
+                "An embedding API does not expose the internal token hidden states of a generative model. It returns a separate embedding vector for the complete input text.",
+                "These maps share the idea of coordinates, but they are not interchangeable. The embedding API returns a text location, not the transformer's changing internal token map.",
+            ),
         ),
     );
 }
 
 const EMBEDDING_STEPS = [
     {
-        label: "Context",
-        liveCaption: "Compare the same word inside two meanings. The model embeds each complete sentence, so surrounding text changes the result.",
-        caption: "Words that occur in similar company develop related numerical representations.",
+        key: "context",
+        label: "Co-occurrence",
+        liveLabel: "Input texts",
+        analogyLabel: "Context",
+        liveAnalogyLabel: "Text examples",
+        liveCaption: "The API embeds each complete input text, not the highlighted word in isolation.",
+        liveAnalogyCaption: "The complete text receives a map location, so the surrounding words affect where it lands.",
+        caption: "GloVe learns word vectors from global word-word co-occurrence statistics.",
+        analogyCaption: "Words used in similar contexts tend to receive addresses in related parts of the map.",
         build: buildContextStage,
     },
     {
-        label: "Vectors",
-        liveCaption: "Inspect real values returned by the Azure embedding deployment while full vectors remain on the server.",
-        caption: "The model turns each vocabulary word into one fixed point with many learned coordinates.",
+        key: "vectors",
+        label: "Word vectors",
+        liveLabel: "Embedding vectors",
+        analogyLabel: "Coordinates",
+        liveAnalogyLabel: "Text locations",
+        liveCaption: "Inspect coordinates returned by the Azure embedding deployment. Calculations use every vector dimension.",
+        liveAnalogyCaption: "Inspect the coordinates that form each text's location on the map.",
+        caption: "Each vocabulary word has one context-independent vector with learned coordinates.",
+        analogyCaption: "Each word has one address made from many coordinates.",
         build: buildVectorStage,
     },
     {
-        label: "Relationships",
-        liveCaption: "Measure semantic similarity between sentence vectors and compare related text with text from a different meaning.",
-        caption: "Vector subtraction exposes a direction between two words. Some relationship directions align.",
+        key: "relationships",
+        label: "Vector offsets",
+        liveLabel: "Cosine similarity",
+        analogyLabel: "Directions",
+        liveAnalogyLabel: "Direction match",
+        liveCaption: "Compare embedding vectors with cosine similarity and the corresponding angle.",
+        liveAnalogyCaption: "Compare how closely the text vectors point in the same direction.",
+        caption: "Subtract word vectors to form offsets, then compare the offsets with cosine similarity.",
+        analogyCaption: "Compare the directions between word addresses.",
         build: buildRelationshipStage,
     },
     {
-        label: "Word arithmetic",
+        key: "analogy",
+        label: "Vector analogy",
         liveLabel: "Vector experiment",
-        liveCaption: "Call Azure once for four texts, then test A \u2212 B + C against a target without claiming that a modern model guarantees analogies.",
-        caption: "Now calculate an analogy and search the complete bundled vocabulary. The result is observed, not forced.",
+        analogyLabel: "Word-map experiment",
+        liveAnalogyLabel: "Map experiment",
+        liveCaption: "Send four texts to Azure, compute A \u2212 B + C from their embedding vectors, and compare the result with Target by cosine similarity.",
+        liveAnalogyCaption: "Place four texts on the map, then move from A away from B and toward C before comparing with Target.",
+        caption: "Compute A \u2212 B + C and rank the bundled vocabulary by cosine similarity.",
+        analogyCaption: "Move from one word address through the map and find the closest remaining words.",
         build: buildAnalogyStage,
     },
     {
-        label: "LLM bridge",
-        liveCaption: "Separate static word vectors, semantic embedding APIs, and contextual token representations inside a generative LLM.",
-        caption: "Modern LLMs extend the vector idea with tokens, context, attention, and repeated transformations.",
+        key: "bridge",
+        label: "Transformers",
+        liveLabel: "Model comparison",
+        analogyLabel: "Changing maps",
+        liveAnalogyLabel: "Map comparison",
+        liveCaption: "Compare static word embeddings, text embedding models, and contextual hidden states in generative transformers.",
+        liveAnalogyCaption: "Compare a fixed word map, a text map, and the transformer's changing internal token map.",
+        caption: "Compare static word embeddings with the contextual hidden states computed by transformer language models.",
+        analogyCaption: "Compare a fixed word map with the coordinates that transformers update for every token.",
         build: buildBridgeStage,
     },
 ];
 
+const LIVE_EMBEDDING_STEP_ORDER = ["context", "analogy", "vectors", "relationships", "bridge"];
+
+function currentEmbeddingSteps() {
+    if (embeddingDemo.mode !== "live") {
+        return EMBEDDING_STEPS;
+    }
+
+    return LIVE_EMBEDDING_STEP_ORDER.map((key) =>
+        EMBEDDING_STEPS.find((step) => step.key === key));
+}
+
 function renderEmbeddingSteps() {
     const steps = el("embeddingSteps");
     steps.replaceChildren();
-    EMBEDDING_STEPS.forEach((step, index) => {
-        const label = embeddingDemo.mode === "live" && step.liveLabel ? step.liveLabel : step.label;
+    currentEmbeddingSteps().forEach((step, index) => {
+        let label = embeddingDemo.mode === "live" && step.liveLabel ? step.liveLabel : step.label;
+        if (usesEmbeddingAnalogy()) {
+            label = embeddingDemo.mode === "live" && step.liveAnalogyLabel
+                ? step.liveAnalogyLabel
+                : step.analogyLabel;
+        }
         const button = makeNode("button", "embedding-step", label);
         button.type = "button";
         button.setAttribute("role", "tab");
@@ -2828,21 +2995,29 @@ function renderEmbeddingProvenance() {
 function renderEmbeddingStage() {
     renderEmbeddingSourceSwitch();
     renderEmbeddingSteps();
-    const step = EMBEDDING_STEPS[embeddingDemo.index];
-    el("embeddingCaption").textContent = embeddingDemo.mode === "live" && step.liveCaption
+    const steps = currentEmbeddingSteps();
+    const step = steps[embeddingDemo.index];
+    let caption = embeddingDemo.mode === "live" && step.liveCaption
         ? step.liveCaption
         : step.caption;
+    if (usesEmbeddingAnalogy()) {
+        caption = embeddingDemo.mode === "live" && step.liveAnalogyCaption
+            ? step.liveAnalogyCaption
+            : step.analogyCaption;
+    }
+    el("embeddingCaption").textContent = caption;
     const stage = el("embeddingStage");
     stage.replaceChildren();
     step.build(stage);
     el("embeddingPrev").disabled = embeddingDemo.index === 0;
-    el("embeddingNext").disabled = embeddingDemo.index === EMBEDDING_STEPS.length - 1;
+    el("embeddingNext").disabled = embeddingDemo.index === steps.length - 1;
     renderEmbeddingProvenance();
 }
 
 function setEmbeddingStatus(message, isError = false) {
     const node = el("embeddingStatus");
     node.textContent = message || "";
+    node.hidden = !message;
     node.classList.toggle("error", isError);
 }
 
@@ -2885,9 +3060,7 @@ async function runEmbeddingAnalogy(request, rerender = true) {
 
     try {
         state.embeddingResult = await postJson("/api/embeddings/analogy", request);
-        setEmbeddingStatus(
-            `Calculated ${request.positiveA} \u2212 ${request.negative} + ${request.positiveB} across ${embeddingVocabularyCount().toLocaleString()} words.`,
-        );
+        setEmbeddingStatus("");
     } catch (error) {
         setEmbeddingStatus(error.message, true);
     } finally {
@@ -2907,12 +3080,7 @@ async function runLiveEmbeddingCompare(request) {
 
     try {
         state.liveEmbeddingResult = await postJson("/api/embeddings/live-compare", request);
-        const latency = Number(state.liveEmbeddingResult.latencyMs || 0);
-        setEmbeddingStatus(
-            latency > 0
-                ? `Azure returned four embeddings in ${latency.toLocaleString()} ms.`
-                : "Azure returned four embeddings.",
-        );
+        setEmbeddingStatus("");
     } catch (error) {
         setEmbeddingStatus(error.message, true);
     } finally {
@@ -2922,7 +3090,7 @@ async function runLiveEmbeddingCompare(request) {
 }
 
 function embeddingGo(index) {
-    embeddingDemo.index = Math.max(0, Math.min(EMBEDDING_STEPS.length - 1, index));
+    embeddingDemo.index = Math.max(0, Math.min(currentEmbeddingSteps().length - 1, index));
     renderEmbeddingStage();
 }
 
@@ -2977,6 +3145,8 @@ function trapEmbeddingFocus(event) {
 function wireEmbeddingExplainer() {
     el("embeddingStaticSource").addEventListener("click", () => setEmbeddingMode("static"));
     el("embeddingLiveSource").addEventListener("click", () => setEmbeddingMode("live"));
+    el("embeddingTerminologyTechnical").addEventListener("click", () => setEmbeddingTerminology("technical"));
+    el("embeddingTerminologyAnalogy").addEventListener("click", () => setEmbeddingTerminology("analogy"));
     el("embeddingOpen").addEventListener("click", openEmbeddingExplainer);
     el("embeddingClose").addEventListener("click", closeEmbeddingExplainer);
     el("embeddingExplainer").addEventListener("click", (event) => {
@@ -2993,8 +3163,8 @@ function wireEmbeddingExplainer() {
             state.liveEmbeddingResult = null;
             setEmbeddingStatus(
                 liveEmbeddingAvailable()
-                    ? "Ready. Run the Azure model when you want to compare these texts."
-                    : "The live embedding model is unavailable. Provision Azure or configure its endpoint and deployment.",
+                    ? ""
+                    : "The Azure text embedding deployment is not configured.",
                 !liveEmbeddingAvailable(),
             );
             renderEmbeddingStage();

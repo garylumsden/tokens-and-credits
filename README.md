@@ -41,12 +41,13 @@ and for any prompt it shows:
    (`/api/merge-trace`) and verified against its own output, then explains how tokenization
    differs across vendors/families — OpenAI GPT, Qwen and Llama 3 use byte-level BPE; Google
    Gemini/Gemma use SentencePiece/Unigram; Anthropic and Microsoft MAI tokenizers are not public.
-9. **"How language becomes geometry" explainer**: a second header button uses real, local GloVe
-   vectors to show how word co-occurrence patterns become geometric relationships. It displays
-   raw vector previews, compares measured relationship directions, and searches the bundled
-   10,000-word vocabulary for analogy results. A second, optional mode calls an Azure
-   `text-embedding-3-small` deployment to compare complete sentences, showing how context changes
-   semantic similarity. Both modes use observed calculations rather than scripted results.
+9. **"How text embeddings work" explainer**: a second header button compares two embedding
+   approaches. The local mode uses GloVe 6B static word embeddings. It shows vector coordinates,
+   vector offsets, cosine similarity, and vector-analogy nearest neighbours across 10,000 words.
+   The live mode calls an Azure `text-embedding-3-small` deployment for four complete input texts.
+   It shows the returned vectors, pairwise cosine similarities, and an experimental vector
+   calculation. An **Accurate terms / Concept analogy** toggle changes the explanatory language.
+   It does not change the source data, formulas, measured values, or model calls.
 10. **Local model discovery (Foundry Local + LM Studio + Ollama)**: models from a running
    **Foundry Local** daemon, **LM Studio** (`localhost:1234`) or **Ollama** (`localhost:11434`)
    appear in the selector automatically. Discovery fails silently when a runtime isn't running.
@@ -127,12 +128,45 @@ the UI light up:
 | **gpt-4.1** | Chat (stronger coding / instruction-following) | A second non-reasoning model so you can compare tokenization and usage against gpt-4o. Also logprob- and cache-capable. | logprobs ✓, caching ✓ |
 | **o4-mini** | Reasoning model (o-series) | Reports hidden **reasoning tokens**, so the **Reasoning** usage card becomes non-N/A — showing how a model can spend its whole output budget "thinking". o-series models don't return logprobs. | reasoning ✓, caching ✓, logprobs ✗ |
 | **gpt-image-1.5** | Image generation | Switches the UI into image mode and demonstrates **token-billed image output** — input *text* tokens for the prompt plus output *image* tokens that scale with size/quality (no flat per-image fee). | image modality, no caching/logprobs/reasoning |
-| **text-embedding-3-small** | Semantic embedding | Powers the optional live mode in **How language becomes geometry**. It embeds four complete texts in one request; it is not shown in the chat-model selector. | 1,536-dimensional text embeddings |
+| **text-embedding-3-small** | Text embedding | Powers the optional live mode in **How text embeddings work**. It embeds four complete texts in one request; it is not shown in the chat-model selector. | 1,536-dimensional text embeddings |
 
 The four generation models use the `o200k_base` encoding for local tokenization. Trim or extend the list in
 `infra/main.bicep` (deployments) and `appsettings.json` (capability flags) to match your quota —
 the image feature only appears when a `gpt-image-1.5` deployment is present. The embedding
 deployment is configured separately as `AzureFoundry:EmbeddingDeployment`.
+
+---
+
+## Embedding models
+
+The app uses two different embedding sources:
+
+| Mode | Model or dataset | Representation | Execution |
+| --- | --- | --- | --- |
+| **Static GloVe** | GloVe 6B 50d, Wikipedia 2014 + Gigaword 5 | One context-independent, 50-dimensional vector per vocabulary word | Local, using the bundled first 10,000 vocabulary entries |
+| **Azure text embeddings** | `text-embedding-3-small` | One 1,536-dimensional vector per complete input text | Live Azure model call |
+
+The app does **not** use Word2Vec. The branch or feature name might use that term informally, but
+the bundled file, loader, manifest, licence, and calculations all use GloVe vectors.
+
+### GloVe compared with Word2Vec
+
+GloVe and Word2Vec both produce static word embeddings. Each vocabulary word receives one vector
+that does not change with sentence context. Their training methods differ:
+
+- **Word2Vec** is predictive. Its CBOW model predicts a target word from nearby words. Its
+  skip-gram model predicts nearby words from a target word.
+- **GloVe** is count-based. It learns vectors from global word-word co-occurrence statistics
+  collected across the training corpus.
+- Both methods can produce useful word-similarity results and approximately linear vector
+  offsets. Their trained vectors are separate datasets and are not interchangeable.
+
+See the [GloVe project](https://nlp.stanford.edu/projects/glove/) and the
+[original Word2Vec paper](https://arxiv.org/abs/1301.3781) for the training objectives.
+
+The Azure `text-embedding-3-small` model is a modern text embedding model. It maps each complete
+input text to one vector. It is not a GloVe or Word2Vec implementation, and its internal training
+method is not exposed by this app.
 
 ---
 
@@ -319,15 +353,15 @@ Browser (wwwroot) ──► /api/tokenize        (local only: tokenizer → ids 
   changing the billing model recomputes instantly with no re-run. `CreditEstimator` mirrors the
   same maths in C# for unit tests.
 - **Static embeddings** (`Services/Embeddings`): the app loads a deterministic, frequency-ordered
-  subset of 10,000 GloVe 6B 50-dimensional word vectors. It calculates cosine similarity,
-  relationship angles, and analogy rankings locally. The source vocabulary has 400,000 words,
-  so the UI labels every ranking as limited to the bundled vocabulary. Run
+  subset of 10,000 GloVe 6B 50-dimensional word vectors. It does not load Word2Vec vectors.
+  It calculates cosine similarity, relationship angles, and analogy rankings locally. The source
+  vocabulary has 400,000 words, so each ranking is limited to the bundled vocabulary. Run
   `tools/Build-EmbeddingSubset.ps1` to recreate the asset from the verified source archive.
 - **Live embeddings** (`Services/Embeddings`): when the Azure endpoint and embedding deployment
   are configured, the server batches four texts into one authenticated Azure request. It keeps
   full vectors on the server and returns previews, pairwise similarities, measured angles, and
   an explicitly experimental vector-arithmetic comparison. Opening the modal does not call Azure;
-  the user must select **Run live Azure model**.
+  the user must open **Vector experiment** and select **Generate embeddings**.
 
 ---
 
@@ -434,4 +468,5 @@ Apache-2.0; it is redistributed here for exact local tokenization of Qwen models
 The bundled GloVe subset in `src/TokensAndCredits.Web/Resources/embeddings` is derived from
 GloVe 6B 50d, trained on Wikipedia 2014 and Gigaword 5. The vectors are distributed under the
 [Open Data Commons PDDL 1.0](src/TokensAndCredits.Web/Resources/embeddings/LICENSE-PDDL-1.0.txt).
-The manifest records the source URL, subset rule, citation, and checksums.
+The manifest records the source URL, subset rule, citation, and checksums. This asset is GloVe,
+not Word2Vec.

@@ -645,7 +645,12 @@ public static class TokenEndpoints
                         input = m.InputPerMillion,
                         cacheRead = m.CacheReadPerMillion,
                         cacheWrite = m.CacheWritePerMillion,
-                        output = m.OutputPerMillion
+                        output = m.OutputPerMillion,
+                        longContextThreshold = m.LongContextThreshold,
+                        longContextInput = m.LongContextInputPerMillion,
+                        longContextCacheRead = m.LongContextCacheReadPerMillion,
+                        longContextCacheWrite = m.LongContextCacheWritePerMillion,
+                        longContextOutput = m.LongContextOutputPerMillion
                     })
                 }
             });

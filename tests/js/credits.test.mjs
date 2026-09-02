@@ -66,4 +66,27 @@ const studio = { basic: 0.1, standard: 1.5, premium: 10 };
     assert.deepEqual(a.studio, b.studio);
 }
 
+// 5) Long-context models switch rates above the published input threshold.
+{
+    const tiered = {
+        id: "tiered",
+        label: "Tiered",
+        input: 100,
+        cacheRead: 10,
+        cacheWrite: 0,
+        output: 200,
+        longContextThreshold: 200_000,
+        longContextInput: 200,
+        longContextCacheRead: 20,
+        longContextCacheWrite: 0,
+        longContextOutput: 300,
+    };
+    const usage = { prompt: 200_001, cached: 0, output: 1_000_000, reasoning: 0, total: 1_200_001 };
+    const r = computeCredits(usage, tiered, studio, 0, 0);
+    assert.equal(r.github.tier, "Long context");
+    assert.equal(r.github.input, 40.0002);
+    assert.equal(r.github.output, 300);
+    assert.equal(r.github.total, 340.0002);
+}
+
 console.log("credits.test.mjs: all assertions passed");

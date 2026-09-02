@@ -12,25 +12,25 @@ param location string
 param principalId string
 
 @description('Principal type for the role assignment (User for azd up; ServicePrincipal in CI).')
-@allowed([ 'User', 'ServicePrincipal' ])
+@allowed(['User', 'ServicePrincipal'])
 param principalType string = 'User'
 
 @description('Model deployments to create on the Foundry account. Trim to match region quota.')
 param deployments array = [
   {
-    name: 'gpt-4o'
-    model: { format: 'OpenAI', name: 'gpt-4o', version: '2024-11-20' }
-    sku: { name: 'GlobalStandard', capacity: 30 }
+    name: 'gpt-5.6-sol'
+    model: { format: 'OpenAI', name: 'gpt-5.6-sol', version: '2026-07-09' }
+    sku: { name: 'GlobalStandard', capacity: 3 }
   }
   {
-    name: 'gpt-4.1'
-    model: { format: 'OpenAI', name: 'gpt-4.1', version: '2025-04-14' }
-    sku: { name: 'GlobalStandard', capacity: 30 }
+    name: 'gpt-5.4'
+    model: { format: 'OpenAI', name: 'gpt-5.4', version: '2026-03-05' }
+    sku: { name: 'GlobalStandard', capacity: 3 }
   }
   {
-    name: 'o4-mini'
-    model: { format: 'OpenAI', name: 'o4-mini', version: '2025-04-16' }
-    sku: { name: 'GlobalStandard', capacity: 30 }
+    name: 'gpt-5.4-mini'
+    model: { format: 'OpenAI', name: 'gpt-5.4-mini', version: '2026-03-17' }
+    sku: { name: 'GlobalStandard', capacity: 3 }
   }
   {
     // Image generation (token-billed). Powers the image-output token-usage feature.

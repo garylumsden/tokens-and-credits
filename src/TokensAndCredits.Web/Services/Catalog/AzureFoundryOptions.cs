@@ -35,16 +35,16 @@ public sealed class AzureDeploymentOptions
     /// <summary>Friendly label for the selector; defaults to Name.</summary>
     public string? Label { get; set; }
 
-    /// <summary>tiktoken encoding (o200k_base for gpt-4o/gpt-4.1/o-series; cl100k_base for older).</summary>
+    /// <summary>tiktoken encoding (o200k_base for GPT-5 and o-series; cl100k_base for older models).</summary>
     public string Encoding { get; set; } = "o200k_base";
 
-    /// <summary>True for o-series / reasoning models that report reasoning_tokens.</summary>
+    /// <summary>True for GPT-5 or o-series models that report reasoning_tokens.</summary>
     public bool SupportsReasoning { get; set; }
 
-    /// <summary>True for GPT-4o+ models that report cached_tokens.</summary>
+    /// <summary>True for models that report cached_tokens.</summary>
     public bool SupportsCaching { get; set; } = true;
 
-    /// <summary>True for models that return per-token logprobs (GPT-4o/4.1; not o-series).</summary>
+    /// <summary>True for models that return per-token logprobs. Reasoning models do not support them.</summary>
     public bool SupportsLogprobs { get; set; }
 
     /// <summary>Text completion (default) or image generation output.</summary>

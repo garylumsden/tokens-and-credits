@@ -72,4 +72,19 @@ public sealed class GitHubModelRate
 
     /// <summary>Credits per 1M output tokens (reasoning is billed at this rate).</summary>
     public decimal OutputPerMillion { get; set; }
+
+    /// <summary>Input-token count above which GitHub applies the long-context tier.</summary>
+    public long? LongContextThreshold { get; set; }
+
+    /// <summary>Long-context credits per 1M input tokens.</summary>
+    public decimal? LongContextInputPerMillion { get; set; }
+
+    /// <summary>Long-context credits per 1M cache-read tokens.</summary>
+    public decimal? LongContextCacheReadPerMillion { get; set; }
+
+    /// <summary>Long-context credits per 1M cache-write tokens.</summary>
+    public decimal? LongContextCacheWritePerMillion { get; set; }
+
+    /// <summary>Long-context credits per 1M output tokens.</summary>
+    public decimal? LongContextOutputPerMillion { get; set; }
 }

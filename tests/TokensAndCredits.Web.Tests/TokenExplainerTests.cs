@@ -38,8 +38,8 @@ public sealed class TokenExplainerTests
             .Analyze(tokenizer, text)
             .First(t => t.Value == "hello");
         var model = new ModelDescriptor(
-            "test-gpt-4o",
-            "Test GPT-4o",
+            "test-gpt-5",
+            "Test GPT-5",
             ModelSource.AzureFoundry,
             "cloud",
             "o200k_base",
@@ -63,4 +63,3 @@ public sealed class TokenExplainerTests
         Assert.Contains("no single token", endProof.Explanation);
     }
 }
-

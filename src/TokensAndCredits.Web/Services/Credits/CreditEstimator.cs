@@ -30,11 +30,15 @@ public static class CreditEstimator
         var cached = usage.Cached ?? 0;
         var inputNonCached = Math.Max(0, usage.Prompt - cached);
         var output = usage.Output + (usage.Reasoning ?? 0);
+        var useLongContext = model.LongContextThreshold is long threshold && usage.Prompt > threshold;
+        var inputRate = useLongContext ? model.LongContextInputPerMillion ?? model.InputPerMillion : model.InputPerMillion;
+        var cacheReadRate = useLongContext ? model.LongContextCacheReadPerMillion ?? model.CacheReadPerMillion : model.CacheReadPerMillion;
+        var outputRate = useLongContext ? model.LongContextOutputPerMillion ?? model.OutputPerMillion : model.OutputPerMillion;
 
-        var input = inputNonCached / PerMillion * model.InputPerMillion;
-        var cacheRead = cached / PerMillion * model.CacheReadPerMillion;
+        var input = inputNonCached / PerMillion * inputRate;
+        var cacheRead = cached / PerMillion * cacheReadRate;
         var cacheWrite = 0m; // Azure OpenAI / local report cache reads only.
-        var outputCost = output / PerMillion * model.OutputPerMillion;
+        var outputCost = output / PerMillion * outputRate;
 
         return new GitHubCreditEstimate(
             model.Id,

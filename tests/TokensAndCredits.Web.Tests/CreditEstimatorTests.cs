@@ -83,4 +83,29 @@ public sealed class CreditEstimatorTests
         Assert.Equal(3000m, opus.Total); // 500 + 2500
         Assert.Equal(225m, cheap.Total); // 25 + 200
     }
+
+    [Fact]
+    public void EstimateGitHub_AppliesLongContextRates_AboveThreshold()
+    {
+        var model = new GitHubModelRate
+        {
+            Id = "tiered",
+            Label = "Tiered",
+            InputPerMillion = 100,
+            CacheReadPerMillion = 10,
+            OutputPerMillion = 200,
+            LongContextThreshold = 200_000,
+            LongContextInputPerMillion = 200,
+            LongContextCacheReadPerMillion = 20,
+            LongContextCacheWritePerMillion = 0,
+            LongContextOutputPerMillion = 300,
+        };
+        var usage = new UsageBreakdown(Prompt: 200_001, Output: 1_000_000, Reasoning: null, Cached: 0, Total: 1_200_001);
+
+        var result = CreditEstimator.EstimateGitHub(usage, model);
+
+        Assert.Equal(40.0002m, result.Input);
+        Assert.Equal(300m, result.Output);
+        Assert.Equal(340.0002m, result.Total);
+    }
 }

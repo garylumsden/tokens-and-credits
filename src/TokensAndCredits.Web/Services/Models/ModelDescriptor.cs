@@ -34,10 +34,10 @@ public enum Modality
 /// <param name="Source">Cloud Azure Foundry vs local OpenAI-compatible sources.</param>
 /// <param name="Device">Execution device shown as a badge (e.g. "cloud", "NPU").</param>
 /// <param name="Encoding">Tokenizer encoding label (e.g. "o200k_base", "qwen2-bpe").</param>
-/// <param name="SupportsReasoning">True if the model reports reasoning_tokens (o-series).</param>
-/// <param name="SupportsCaching">True if the model reports cached_tokens (GPT-4o+).</param>
+/// <param name="SupportsReasoning">True if the model reports reasoning_tokens.</param>
+/// <param name="SupportsCaching">True if the model reports cached_tokens.</param>
 /// <param name="Exact">True if local tokenization is byte-exact for this model; false if approximate.</param>
-/// <param name="SupportsLogprobs">True if the model returns per-token logprobs (GPT-4o/4.1; not o-series or local).</param>
+/// <param name="SupportsLogprobs">True if the model returns per-token logprobs. Reasoning and local models do not.</param>
 /// <param name="Modality">Text completion vs image generation output.</param>
 public sealed record ModelDescriptor(
     string Id,

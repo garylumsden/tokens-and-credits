@@ -612,12 +612,20 @@ function computeCredits(usage, model, studioRates, githubOverhead = 0, studioOve
     const ghOverhead = Math.max(0, Number(githubOverhead) || 0);
     const csOverhead = Math.max(0, Number(studioOverhead) || 0);
     const inputNonCached = Math.max(0, prompt - cached) + ghOverhead;
+    const billedInput = prompt + ghOverhead;
     const studioTotal = (Number(usage.total) || 0) + csOverhead;
+    const longContextThreshold = Number(model.longContextThreshold);
+    const useLongContext = Number.isFinite(longContextThreshold)
+        && longContextThreshold > 0
+        && billedInput > longContextThreshold;
+    const inputRate = useLongContext ? Number(model.longContextInput) : Number(model.input);
+    const cacheReadRate = useLongContext ? Number(model.longContextCacheRead) : Number(model.cacheRead);
+    const outputRate = useLongContext ? Number(model.longContextOutput) : Number(model.output);
 
-    const githubInput = (inputNonCached / 1_000_000) * Number(model.input);
-    const githubCacheRead = (cached / 1_000_000) * Number(model.cacheRead);
+    const githubInput = (inputNonCached / 1_000_000) * inputRate;
+    const githubCacheRead = (cached / 1_000_000) * cacheReadRate;
     const githubCacheWrite = 0; // Azure OpenAI / local report cache reads only.
-    const githubOutput = (output / 1_000_000) * Number(model.output);
+    const githubOutput = (output / 1_000_000) * outputRate;
 
     const thousands = studioTotal / 1000;
 
@@ -625,6 +633,7 @@ function computeCredits(usage, model, studioRates, githubOverhead = 0, studioOve
         github: {
             modelId: model.id,
             modelLabel: model.label,
+            tier: useLongContext ? "Long context" : "Default",
             input: githubInput,
             cacheRead: githubCacheRead,
             cacheWrite: githubCacheWrite,
@@ -692,7 +701,7 @@ function renderCredits() {
         `Output (incl. reasoning): ${formatCredits(g.output)}`,
     ].join("\n");
     el("githubCreditCards").replaceChildren(
-        usageCard(model.label, formatCredits(g.total), true, githubHelp),
+        usageCard(`${model.label} (${g.tier})`, formatCredits(g.total), true, githubHelp),
     );
     setRichText(
         el("githubCreditsNote"),
@@ -700,7 +709,8 @@ function renderCredits() {
         + "cache-write / output rate (reasoning billed as output; cache **reads** discounted, cache "
         + "**writes** a premium, but Azure OpenAI and local runtimes report only reads, so "
         + "cache-write is 0). Overhead adds **input** tokens (system prompt, tool definitions, "
-        + "custom instructions, retrieved context).",
+        + "custom instructions, retrieved context). Models with long-context pricing switch tiers "
+        + "automatically when measured input plus overhead exceeds the published threshold.",
     );
 
     // ---- Copilot Studio section ----

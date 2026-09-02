@@ -17,10 +17,11 @@ and for any prompt it shows:
    character offsets.
 2. **Token usage** from the live model response, split into **prompt / reasoning / output /
    cached** (+ total).
-3. **Logprob confidence** for capable models (`gpt-4o`, `gpt-4.1`): a separate output-token
+3. **Logprob confidence** for a configured model that supports logprobs: a separate output-token
    heatmap shows chosen-token probability and hover/focus alternatives, plus perplexity and
    average confidence. The markdown-rendered answer stays separate so markdown formatting is not
-   broken by token spans, with KaTeX rendering for inline and display formulae.
+   broken by token spans, with KaTeX rendering for inline and display formulae. The current
+   default GPT-5 reasoning deployments do not support logprobs, so they do not show this panel.
 4. **Why a token is a token** — hover (or keyboard-focus) any token chip for a deterministic,
    local explanation: byte breakdown, leading-space marker, vocab id, *why the split lands here*,
    and — for Foundry Local BPE models — the full greedy **merge chain** rebuilt from
@@ -89,6 +90,9 @@ OpenAI-compatible endpoints — all selectable from a dropdown.
 
 ## Run locally
 
+The repository supports local web-app execution. The Azure template deploys only Foundry
+resources and model deployments.
+
 The app is **cross-platform** (portable .NET 10, no runtime identifier pinned) and runs on
 Windows, macOS and Linux:
 
@@ -112,6 +116,9 @@ az login
 The cloud path is optional — you can run entirely against [local models](#local-models)
 without any Azure setup.
 
+Do not expose this local development server to the Internet. It has no inbound user
+authentication because it listens on localhost for a signed-in developer.
+
 ---
 
 ## Cloud models
@@ -124,16 +131,21 @@ the UI light up:
 
 | Deployment | Type | Why it's here / what's different | Capability flags |
 | --- | --- | --- | --- |
-| **gpt-4o** | Multimodal chat (flagship) | General-purpose baseline. Reports **logprobs**, so it powers the confidence heatmap, and supports **prompt caching** for the cache demo. | logprobs ✓, caching ✓ |
-| **gpt-4.1** | Chat (stronger coding / instruction-following) | A second non-reasoning model so you can compare tokenization and usage against gpt-4o. Also logprob- and cache-capable. | logprobs ✓, caching ✓ |
-| **o4-mini** | Reasoning model (o-series) | Reports hidden **reasoning tokens**, so the **Reasoning** usage card becomes non-N/A — showing how a model can spend its whole output budget "thinking". o-series models don't return logprobs. | reasoning ✓, caching ✓, logprobs ✗ |
-| **gpt-image-1.5** | Image generation | Switches the UI into image mode and demonstrates **token-billed image output** — input *text* tokens for the prompt plus output *image* tokens that scale with size/quality (no flat per-image fee). | image modality, no caching/logprobs/reasoning |
+| **gpt-5.6-sol** | Current flagship reasoning model | Demonstrates the latest GPT-5 reasoning and long-context model family. | reasoning ✓, caching ✓, logprobs ✗ |
+| **gpt-5.4** | General-purpose reasoning model | Provides a current GA baseline for model and token-usage comparisons. | reasoning ✓, caching ✓, logprobs ✗ |
+| **gpt-5.4-mini** | Efficient reasoning model | Provides a smaller current GA model for latency and usage comparisons. | reasoning ✓, caching ✓, logprobs ✗ |
+| **gpt-image-1.5** | Image generation | Provides image generation without requiring the separate `gpt-image-2` quota. | image modality, no caching/logprobs/reasoning |
 | **text-embedding-3-small** | Text embedding | Powers the optional live mode in **How text embeddings work**. It embeds four complete texts in one request; it is not shown in the chat-model selector. | 1,536-dimensional text embeddings |
 
 The four generation models use the `o200k_base` encoding for local tokenization. Trim or extend the list in
 `infra/main.bicep` (deployments) and `appsettings.json` (capability flags) to match your quota —
 the image feature only appears when a `gpt-image-1.5` deployment is present. The embedding
 deployment is configured separately as `AzureFoundry:EmbeddingDeployment`.
+
+The default versions match the current Microsoft Foundry catalog. Check the
+[model retirement schedule](https://learn.microsoft.com/azure/foundry/openai/concepts/model-retirement-schedule)
+and [reasoning model feature support](https://learn.microsoft.com/azure/foundry/openai/how-to/reasoning#api--feature-support)
+before you change them.
 
 ---
 
@@ -245,8 +257,8 @@ azd up        # prompts for environment name + location, then provisions
 - an **AI Services (Foundry)** account with **local auth disabled** (Entra-only) and a
   system-assigned identity,
 - a **Foundry project** under the account (portal experience: playground, agents, evals),
-- the model **deployments** (default: `gpt-4o`, `gpt-4.1`, `o4-mini` — trim for quota; add
-  `gpt-image-1.5` to enable the image-generation feature),
+- the model **deployments** (default: `gpt-5.6-sol`, `gpt-5.4`, `gpt-5.4-mini`, and
+  `gpt-image-1.5` — trim for quota),
 - role assignments for your signed-in identity, granted at account scope (they **inherit**
   to the project and the model deployments):
   - **Cognitive Services OpenAI User** — keyless model inference,
@@ -278,7 +290,8 @@ dotnet run
 ```
 
 > **Heads-up — things that can still block a first run:**
-> - **Quota:** the region you pick must have capacity for `gpt-4o`, `gpt-4.1` and `o4-mini`
+> - **Quota:** the region you pick must have capacity for `gpt-5.6-sol`, `gpt-5.4`,
+>   `gpt-5.4-mini`, and `gpt-image-1.5`
 >   (`GlobalStandard`). If not, `azd up` fails on a deployment — trim `deployments` in
 >   `infra/main.bicep` or choose another region.
 > - **RBAC propagation:** the role assignment can take a few minutes to take effect; an early
@@ -308,6 +321,30 @@ Capability flags drive the UI: `SupportsReasoning` shows the reasoning usage car
 > Pick a region with `gpt-image-1.5` quota; the app talks to it via the same keyless Azure
 > OpenAI endpoint and reads the response `usage` to break the cost into input *text* tokens and
 > output *image* tokens.
+
+### Deploy the web app safely
+
+This repository does not deploy or configure a public web host. If you add web hosting, protect
+the app before you enable public access:
+
+1. Enable [App Service authentication](https://learn.microsoft.com/azure/app-service/overview-authentication-authorization)
+   with Microsoft Entra ID.
+2. Require authentication for every request. Reject unauthenticated API requests.
+3. Restrict sign-in to the intended tenant, users, groups, or application roles.
+4. Enable a system-assigned managed identity on the web host.
+5. Grant that identity only **Cognitive Services OpenAI User** on the Foundry account.
+6. Keep local authentication disabled on the Foundry account. Do not add API keys.
+7. Require HTTPS and keep the model endpoint on the server.
+
+Use [Microsoft Entra sign-in configuration](https://learn.microsoft.com/azure/app-service/configure-authentication-provider-aad)
+for inbound user authentication. Use [managed identity for Azure OpenAI](https://learn.microsoft.com/dotnet/ai/how-to/app-service-aoai-auth#add-a-managed-identity-to-app-service)
+for outbound model calls.
+
+If you implement authentication in application code, use the current approved MISE dependency.
+Validate the token signature, issuer, audience, lifetime, and authentication policy.
+
+The deployment is insecure if a public host exposes `/api/analyze`, `/api/analyze-stream`,
+`/api/cache-demo`, `/api/generate-image`, or `/api/embeddings/live-compare` without authentication.
 
 ---
 
@@ -370,7 +407,8 @@ Browser (wwwroot) ──► /api/tokenize        (local only: tokenizer → ids 
 After a model call, the same token usage is converted into **AI Credits** (1 credit = $0.01)
 for two Microsoft billing surfaces. The estimate is driven by a **user-selected billing model**,
 *not* the model that produced the reply — so you can price your prompt's tokens against a model
-the app can't even run (e.g. Claude Opus 4.8 or GPT-5.5). Changing the selector recomputes
+the app can't even run. The catalog includes current OpenAI, Anthropic, Google, Microsoft, xAI,
+Moonshot AI, and GitHub fine-tuned models. Changing the selector recomputes
 instantly from the last run's usage.
 
 The two surfaces are shown as **separate sections** because they are billed differently, and
@@ -380,7 +418,8 @@ each has its **own overhead-tokens field**:
   output** (reasoning is billed at the output rate). Cache **reads** are discounted and cache
   **writes** cost a premium, but Azure OpenAI and local runtimes report only cache *reads*, so
   cache-write shows **0** here. Its overhead field adds **input** tokens (system prompt, tool
-  definitions, custom instructions, retrieved context).
+  definitions, custom instructions, retrieved context). Models with a published long-context
+  tier switch rates automatically when prompt plus overhead tokens exceed the threshold.
 - **Copilot Studio** — "Text and generative AI tools" billed **per 1,000 tokens** at three tiers
   (**Basic 0.1 / Standard 1.5 / Premium 10** credits/1k). The tier is set by the model the AI
   tool uses, so all three are shown. Its overhead field adds to the **total** tokens metered (the
@@ -396,21 +435,26 @@ Rates are list prices that change, so they live in the **`Credits`** section of
 
 ```jsonc
 "Credits": {
-  "AsOf": "June 2026",
+  "AsOf": "September 2, 2026",
   "CopilotStudio": { "Basic": 0.1, "Standard": 1.5, "Premium": 10 },
   "GitHub": {
     "DefaultId": "gpt-5.4",
     "Models": [
       { "Id": "gpt-5.4", "Label": "GPT-5.4",
         "InputPerMillion": 250, "CacheReadPerMillion": 25,
-        "CacheWritePerMillion": 0, "OutputPerMillion": 1500 }
-      // … Claude, GPT-5.x, Gemini, MAI
+        "CacheWritePerMillion": 0, "OutputPerMillion": 1500,
+        "LongContextThreshold": 272000,
+        "LongContextInputPerMillion": 500,
+        "LongContextCacheReadPerMillion": 50,
+        "LongContextCacheWritePerMillion": 0,
+        "LongContextOutputPerMillion": 2250 }
+      // Current OpenAI, Anthropic, Google, Microsoft, xAI, Moonshot AI, and GitHub models
     ]
   }
 }
 ```
 
-**AI Credits documentation (rates as of June 2026):**
+**AI Credits documentation (rates as of September 2, 2026):**
 
 - **GitHub Copilot** — [About billing for GitHub Copilot](https://docs.github.com/en/copilot/concepts/billing/about-billing-for-github-copilot)
   and the per-model [Models and pricing](https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing)
@@ -418,12 +462,19 @@ Rates are list prices that change, so they live in the **`Credits`** section of
 - **Microsoft Copilot Studio** — [Copilot Credits billing rates](https://learn.microsoft.com/microsoft-copilot-studio/requirements-messages-management#copilot-credits-billing-rates)
   (per-1,000-token Basic / Standard / Premium tiers and non-token charges).
 
+The configured GPT-5.6 Sol rates include GitHub's promotion through September 3, 2026.
+Gemini 3.6 Flash and Gemini 3.7 Flash use promotional rates through December 31, 2026.
+Refresh `Credits` when GitHub changes or ends a promotional rate.
+
 ---
 
 ## Security notes
 
 - Keyless throughout (`DefaultAzureCredential`); the Foundry account has local auth disabled.
 - No secrets in the repo; Azure config lives in git-ignored `appsettings.Development.json`.
+- The provided run path is local-only. The repository does not configure a public web host.
+- A public deployment must require Microsoft Entra authentication before requests reach the app.
+- The public web host must use managed identity for model access.
 - Same-origin only, restrictive CSP + `X-Content-Type-Options` / `X-Frame-Options`.
 - Token text is rendered via DOM `textContent` (never `innerHTML`), so echoed input can't
   inject markup. Prompt length is capped server-side.

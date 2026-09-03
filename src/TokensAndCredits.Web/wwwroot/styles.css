@@ -658,6 +658,67 @@ summary:focus-visible {
     grid-template-columns: repeat(5, 1fr);
 }
 
+.image-output-estimate {
+    display: grid;
+    gap: 8px;
+    padding: 14px;
+    background: var(--card-2);
+    border: 1px solid var(--border);
+    border-radius: 9px;
+}
+
+.image-output-estimate > p {
+    margin: 0;
+}
+
+.image-token-table-details {
+    margin-top: 2px;
+}
+
+.image-token-table-details summary {
+    width: fit-content;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.image-token-table-scroll {
+    margin-top: 9px;
+    overflow-x: auto;
+}
+
+.image-token-table {
+    width: 100%;
+    min-width: 420px;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    font-variant-numeric: tabular-nums;
+}
+
+.image-token-table th,
+.image-token-table td {
+    padding: 7px 9px;
+    border: 1px solid var(--border);
+    text-align: right;
+}
+
+.image-token-table th:first-child {
+    text-align: left;
+}
+
+.image-token-table thead,
+.image-token-table tbody th {
+    background: var(--bg);
+}
+
+.image-token-source {
+    width: fit-content;
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 600;
+}
+
 .comparison {
     margin-top: 14px;
     padding: 10px 12px;

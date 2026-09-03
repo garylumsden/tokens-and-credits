@@ -36,8 +36,10 @@ and for any prompt it shows:
 6. **Streaming + time-to-first-token (TTFT)**: text models stream tokens live over SSE; the UI
    shows TTFT and reconciles the final frame with markdown, the logprob heatmap and deep stats.
 7. **Image-generation token usage** (`gpt-image-1.5`): generate an image and see how its output
-   is billed **in tokens** — input *text* tokens for the prompt plus output *image* tokens that
-   scale with size/quality. There is no flat per-image fee; it is all tokens.
+   is billed **in tokens** — input *text* tokens for the prompt plus output *image* tokens.
+   Explicit size and quality settings select a fixed output-token budget that the UI shows before
+   generation. An `auto` setting is only known after the model chooses it. There is no flat
+   per-image fee; it is all tokens.
 8. **"How tokenisation works" explainer**: a header button opens a step-by-step walkthrough
    (manual Next/Back — it does not auto-advance). Its first page shows how illustrative BPE
    training turns frequent byte pairs into vocabulary pieces and ranked merge rules. It then
@@ -324,7 +326,9 @@ Capability flags drive the UI: `SupportsReasoning` shows the reasoning usage car
 > **Image generation** needs a `gpt-image-1.5` deployment (token-billed, `GlobalStandard`).
 > Pick a region with `gpt-image-1.5` quota; the app talks to it via the same keyless Azure
 > OpenAI endpoint and reads the response `usage` to break the cost into input *text* tokens and
-> output *image* tokens.
+> output *image* tokens. For explicit size and quality settings, the output image-token count is
+> known before generation; the response usage confirms it. `auto` settings remain unknown until
+> the model chooses them.
 
 ### Deploy the web app safely
 
@@ -344,7 +348,6 @@ Use [Microsoft Entra sign-in configuration](https://learn.microsoft.com/azure/ap
 for inbound user authentication. Use [managed identity for Azure OpenAI](https://learn.microsoft.com/dotnet/ai/how-to/app-service-aoai-auth#add-a-managed-identity-to-app-service)
 for outbound model calls.
 
-If you implement authentication in application code, use the current approved MISE dependency.
 Validate the token signature, issuer, audience, lifetime, and authentication policy.
 
 The deployment is insecure if a public host exposes `/api/analyze`, `/api/analyze-stream`,

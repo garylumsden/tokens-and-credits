@@ -567,6 +567,7 @@ function setModelMode(model) {
     el("textControls").classList.toggle("hidden", imageMode);
     el("imageControls").classList.toggle("hidden", !imageMode);
     el("textLocalOutputSection").classList.toggle("hidden", imageMode);
+    el("imageLocalOutputSection").classList.toggle("hidden", !imageMode);
     el("textModelResult").classList.toggle("hidden", imageMode);
     el("imageResult").classList.toggle("hidden", !imageMode);
     el("prompt").placeholder = imageMode
@@ -579,6 +580,7 @@ function setModelMode(model) {
         el("finishReason").textContent = "";
         el("comparison").classList.add("hidden");
         el("cacheResult").classList.add("hidden");
+        renderImageOutputEstimate();
     }
 }
 
@@ -1073,6 +1075,47 @@ function renderImageUsage(container, usage) {
     );
 }
 
+const IMAGE_OUTPUT_TOKEN_ESTIMATES = {
+    "1024x1024": { low: 272, medium: 1056, high: 4160 },
+    "1024x1536": { low: 408, medium: 1584, high: 6240 },
+    "1536x1024": { low: 400, medium: 1568, high: 6208 },
+};
+
+function expectedImageOutputTokens(size, quality) {
+    return IMAGE_OUTPUT_TOKEN_ESTIMATES[size]?.[quality] ?? null;
+}
+
+function renderImageOutputEstimate(reportedOutputTokens = null) {
+    const size = el("imageSize").value;
+    const quality = el("imageQuality").value;
+    const expected = expectedImageOutputTokens(size, quality);
+    const count = el("imageOutputEstimateCount");
+    const lead = el("imageOutputEstimateLead");
+    const note = el("imageOutputEstimateNote");
+
+    if (expected === null) {
+        const hasReported = reportedOutputTokens !== null && reportedOutputTokens !== undefined;
+        count.textContent = hasReported
+            ? `(${reportedOutputTokens.toLocaleString()} reported)`
+            : "(known after generation)";
+        lead.textContent = hasReported
+            ? `The API reported ${reportedOutputTokens.toLocaleString()} output image tokens after resolving the auto setting.`
+            : "The exact output token count cannot be predicted because size or quality is set to auto.";
+        note.textContent = hasReported
+            ? "The model chose the missing setting during generation, so no exact pre-generation estimate was available."
+            : "The model must choose the missing setting first. The response usage then provides the authoritative output token count.";
+        return;
+    }
+
+    count.textContent = `(${expected.toLocaleString()} expected)`;
+    lead.textContent =
+        `${quality[0].toUpperCase()}${quality.slice(1)} quality at ${size.replace("x", "\u00D7")} ` +
+        `uses a fixed budget of ${expected.toLocaleString()} output image tokens.`;
+    note.textContent = reportedOutputTokens === null || reportedOutputTokens === undefined
+        ? "This estimate is known before generation. Prompt complexity and image file size do not change it."
+        : `The API reported ${reportedOutputTokens.toLocaleString()} output image tokens for the completed image.`;
+}
+
 function renderImageExplanation(usage, size, quality) {
     const node = el("imageExplanation");
     const values = usage || {};
@@ -1082,12 +1125,14 @@ function renderImageExplanation(usage, size, quality) {
     const input = values.textTokens === null || values.textTokens === undefined
         ? "N/A"
         : String(values.textTokens);
+    const expected = expectedImageOutputTokens(size, quality);
 
     const text = document.createElement("p");
-    text.textContent =
-        `Prompt text becomes input text tokens (${input}). ` +
-        `Rendered image becomes output image tokens (${output}); output token count scales with size ${size} and quality ${quality}. ` +
-        "There is no flat per-image fee in this demo path — billing is token-based.";
+    text.textContent = expected === null
+        ? `Prompt text becomes input text tokens (${input}). Size or quality used auto, so the output image-token count was only known after generation (${output}). ` +
+            "There is no flat per-image fee in this demo path \u2014 billing is token-based."
+        : `Prompt text becomes input text tokens (${input}). ${quality} quality at ${size.replace("x", "\u00D7")} has a fixed output budget of ` +
+            `${expected.toLocaleString()} image tokens; the API reported ${output}. Visual complexity and file size do not change that output budget.`;
 
     node.replaceChildren(text);
 }
@@ -1351,6 +1396,7 @@ async function generateImage() {
         el("imagePlaceholder").classList.add("hidden");
 
         renderImageUsage(el("imageUsageCards"), result.usage);
+        renderImageOutputEstimate(result.usage?.outputTokens);
         renderImageExplanation(result.usage, size, quality);
         setStatus("Image done.");
     } catch (err) {
@@ -1634,6 +1680,7 @@ const EXPLAINER_STEPS = [
                 "So a long common word can be 1 token, while a short rare, misspelled or made-up string can split into many.",
                 "\u201c~4 characters \u2248 1 token\u201d is only a rough average for typical English \u2014 handy for estimating cost, but not a rule.",
                 "You are billed per token \u2014 both input and output.",
+                "Image generation uses a separate token system. With GPT Image 1.5, explicit size and quality select a fixed output image-token budget before generation; **auto** is known only after the model chooses.",
                 "Capitalisation, spaces and punctuation each change the split (they change the byte sequence being looked up).",
                 "Hover any token chip in the app to see its real merge chain.",
             ].forEach((line) => {
@@ -3786,6 +3833,8 @@ async function init() {
     });
     el("prompt").addEventListener("input", tokenizeLive);
     el("samplePrompt").addEventListener("change", applySamplePrompt);
+    el("imageSize").addEventListener("change", () => renderImageOutputEstimate());
+    el("imageQuality").addEventListener("change", () => renderImageOutputEstimate());
     populateSamplePrompts();
     el("run").addEventListener("click", runModel);
     el("generateImage").addEventListener("click", generateImage);

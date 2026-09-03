@@ -7,7 +7,7 @@
     <title>AI Tokens &amp; AI Credits — token + usage + credit breakdown</title>
     <script src="theme.js?v=theme-1"></script>
     <link rel="stylesheet" href="vendor/katex/katex.min.css?v=0.18.1" />
-    <link rel="stylesheet" href="styles.css?v=theme-2" />
+    <link rel="stylesheet" href="styles.css?v=image-tokens-1" />
 </head>
 <body>
     <header class="app-header">
@@ -89,6 +89,38 @@
                     <h2>Output tokens <span id="localOutputCount" class="count"></span></h2>
                     <div id="localOutputTokens" class="tokens"></div>
                     <p class="meta muted">Output tokens are the model's reply re-tokenized locally for the same highlight.</p>
+                </div>
+                <div id="imageLocalOutputSection" class="hidden">
+                    <h2>Output image tokens <span id="imageOutputEstimateCount" class="count"></span></h2>
+                    <div class="image-output-estimate">
+                        <p id="imageOutputEstimateLead"></p>
+                        <p id="imageOutputEstimateNote" class="meta muted"></p>
+                        <details class="image-token-table-details">
+                            <summary>View the GPT Image token table</summary>
+                            <div class="image-token-table-scroll">
+                                <table class="image-token-table">
+                                    <thead>
+                                        <tr>
+                                            <th scope="col">Quality</th>
+                                            <th scope="col">1024×1024</th>
+                                            <th scope="col">1024×1536</th>
+                                            <th scope="col">1536×1024</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><th scope="row">Low</th><td>272</td><td>408</td><td>400</td></tr>
+                                        <tr><th scope="row">Medium</th><td>1,056</td><td>1,584</td><td>1,568</td></tr>
+                                        <tr><th scope="row">High</th><td>4,160</td><td>6,240</td><td>6,208</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </details>
+                        <a class="image-token-source"
+                           href="https://developers.openai.com/api/docs/guides/image-generation#cost-and-latency"
+                           target="_blank" rel="noopener noreferrer">
+                            Source: GPT Image output-token documentation
+                        </a>
+                    </div>
                 </div>
             </section>
 
@@ -254,6 +286,6 @@
 
     <script src="vendor/katex/katex.min.js?v=0.18.1"></script>
     <script src="vendor/katex/contrib/auto-render.min.js?v=0.18.1"></script>
-    <script src="app.js?v=theme-1"></script>
+    <script src="app.js?v=image-tokens-1"></script>
 </body>
 </html>

@@ -37,9 +37,11 @@ and for any prompt it shows:
    shows TTFT and reconciles the final frame with markdown, the logprob heatmap and deep stats.
 7. **Image-generation token usage** (`gpt-image-1.5`): generate an image and see how its output
    is billed **in tokens** — input *text* tokens for the prompt plus output *image* tokens.
-   Explicit size and quality settings select a fixed output-token budget that the UI shows before
-   generation. An `auto` setting is only known after the model chooses it. There is no flat
-   per-image fee; it is all tokens.
+   Explicit size and quality settings select a fixed **image output-token** component that the UI
+   shows before generation. GPT Image 1.5 can add a variable, unreturned text output-token count,
+   so the total output is only confirmed by the response. The API does not expose the content or
+   document the purpose of those text tokens. An `auto` setting also leaves the image component
+   unknown until the model chooses it. There is no flat per-image fee; it is all tokens.
 8. **"How tokenisation works" explainer**: a header button opens a step-by-step walkthrough
    (manual Next/Back — it does not auto-advance). Its first page shows how illustrative BPE
    training turns frequent byte pairs into vocabulary pieces and ranked merge rules. It then
@@ -326,9 +328,10 @@ Capability flags drive the UI: `SupportsReasoning` shows the reasoning usage car
 > **Image generation** needs a `gpt-image-1.5` deployment (token-billed, `GlobalStandard`).
 > Pick a region with `gpt-image-1.5` quota; the app talks to it via the same keyless Azure
 > OpenAI endpoint and reads the response `usage` to break the cost into input *text* tokens and
-> output *image* tokens. For explicit size and quality settings, the output image-token count is
-> known before generation; the response usage confirms it. `auto` settings remain unknown until
-> the model chooses them.
+> output tokens. For explicit size and quality settings, the image output-token component is known
+> before generation. GPT Image 1.5 can also report variable, unreturned output text tokens, so
+> response usage confirms the image/text split and the total. The API exposes their count, but not
+> their content or documented purpose. `auto` settings remain unknown until the model chooses them.
 
 ### Deploy the web app safely
 

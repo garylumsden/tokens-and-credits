@@ -655,7 +655,7 @@ summary:focus-visible {
 }
 .image-frame img:not([src]) { display: none; }
 .image-usage-cards {
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
 }
 
 .image-output-estimate {

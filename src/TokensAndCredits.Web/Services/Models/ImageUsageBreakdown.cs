@@ -8,4 +8,6 @@ public sealed record ImageUsageBreakdown(
     int? InputTokens,
     int? OutputTokens,
     int? TextTokens,
-    int? ImageTokens);
+    int? ImageTokens,
+    int? OutputTextTokens,
+    int? OutputImageTokens);

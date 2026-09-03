@@ -8,7 +8,7 @@ namespace TokensAndCredits.Web.Services.Image;
 
 internal static class ImageUsageParser
 {
-    public static ImageUsageBreakdown Empty { get; } = new(null, null, null, null);
+    public static ImageUsageBreakdown Empty { get; } = new(null, null, null, null, null, null);
 
     public static ImageUsageBreakdown? FromTyped(ImageTokenUsage? usage)
     {
@@ -21,7 +21,9 @@ internal static class ImageUsageParser
             ToNullableInt(usage.InputTokenCount),
             ToNullableInt(usage.OutputTokenCount),
             ToNullableInt(usage.InputTokenDetails?.TextTokenCount),
-            ToNullableInt(usage.InputTokenDetails?.ImageTokenCount));
+            ToNullableInt(usage.InputTokenDetails?.ImageTokenCount),
+            ToNullableInt(usage.OutputTokenDetails?.TextTokenCount),
+            ToNullableInt(usage.OutputTokenDetails?.ImageTokenCount));
     }
 
     public static ImageUsageBreakdown? ParseRaw(BinaryData? content)
@@ -49,11 +51,22 @@ internal static class ImageUsageParser
                 imageTokens = GetInt(details, "image_tokens");
             }
 
+            int? outputTextTokens = null;
+            int? outputImageTokens = null;
+            if (usage.TryGetProperty("output_tokens_details", out var outputDetails) &&
+                outputDetails.ValueKind == JsonValueKind.Object)
+            {
+                outputTextTokens = GetInt(outputDetails, "text_tokens");
+                outputImageTokens = GetInt(outputDetails, "image_tokens");
+            }
+
             return new ImageUsageBreakdown(
                 GetInt(usage, "input_tokens"),
                 GetInt(usage, "output_tokens"),
                 textTokens,
-                imageTokens);
+                imageTokens,
+                outputTextTokens,
+                outputImageTokens);
         }
         catch (JsonException)
         {

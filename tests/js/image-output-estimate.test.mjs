@@ -25,7 +25,12 @@ assert.match(indexHtml, /developers\.openai\.com\/api\/docs\/guides\/image-gener
 
 assert.match(appJs, /known after generation/);
 assert.match(appJs, /Prompt complexity and image file size do not change it/);
-assert.match(appJs, /Visual complexity and file size do not change that output budget/);
+assert.match(appJs, /Unreturned text output/);
+assert.match(appJs, /does not expose its content or document its purpose/);
+assert.match(appJs, /Output total/);
+assert.match(appJs, /outputImageTokens/);
+assert.match(appJs, /outputTextTokens/);
+assert.match(appJs, /Visual complexity and file size do not change the fixed image-token component/);
 assert.match(appJs, /Image generation uses a separate token system/);
 assert.match(appJs, /imageSize"\)\.addEventListener\("change"/);
 assert.match(appJs, /imageQuality"\)\.addEventListener\("change"/);

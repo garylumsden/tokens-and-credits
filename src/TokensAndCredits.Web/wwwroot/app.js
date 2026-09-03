@@ -1070,7 +1070,14 @@ function renderImageUsage(container, usage) {
         usageCard("Input total", values.inputTokens, false, "All input tokens billed: prompt text tokens plus any input image tokens."),
         usageCard("Prompt text", values.textTokens, false, "Tokens from your text prompt."),
         usageCard("Input image", values.imageTokens, false, "Tokens from any input/reference image (0 for text-to-image)."),
-        usageCard("Output image", values.outputTokens, false, "Tokens billed for the generated image. Scales with size and quality \u2014 there is no flat per-image fee."),
+        usageCard(
+            "Unreturned text output",
+            values.outputTextTokens,
+            false,
+            "The API reports this token count but does not expose its content or document its purpose.",
+        ),
+        usageCard("Output image", values.outputImageTokens, false, "Image output tokens. Explicit size and quality select this fixed component before generation."),
+        usageCard("Output total", values.outputTokens, false, "Output text tokens plus output image tokens."),
         usageCard("Total", total, true, "Input + output tokens billed for this image generation."),
     );
 }
@@ -1085,10 +1092,13 @@ function expectedImageOutputTokens(size, quality) {
     return IMAGE_OUTPUT_TOKEN_ESTIMATES[size]?.[quality] ?? null;
 }
 
-function renderImageOutputEstimate(reportedOutputTokens = null) {
+function renderImageOutputEstimate(usage = null) {
     const size = el("imageSize").value;
     const quality = el("imageQuality").value;
     const expected = expectedImageOutputTokens(size, quality);
+    const reportedOutputTokens = usage?.outputTokens;
+    const reportedImageTokens = usage?.outputImageTokens;
+    const reportedTextTokens = usage?.outputTextTokens;
     const count = el("imageOutputEstimateCount");
     const lead = el("imageOutputEstimateLead");
     const note = el("imageOutputEstimateNote");
@@ -1107,13 +1117,15 @@ function renderImageOutputEstimate(reportedOutputTokens = null) {
         return;
     }
 
-    count.textContent = `(${expected.toLocaleString()} expected)`;
+    count.textContent = `(${expected.toLocaleString()} fixed image component)`;
     lead.textContent =
         `${quality[0].toUpperCase()}${quality.slice(1)} quality at ${size.replace("x", "\u00D7")} ` +
-        `uses a fixed budget of ${expected.toLocaleString()} output image tokens.`;
+        `uses a fixed image output component of ${expected.toLocaleString()} tokens.`;
     note.textContent = reportedOutputTokens === null || reportedOutputTokens === undefined
         ? "This estimate is known before generation. Prompt complexity and image file size do not change it."
-        : `The API reported ${reportedOutputTokens.toLocaleString()} output image tokens for the completed image.`;
+        : `The API reported ${reportedOutputTokens.toLocaleString()} total output tokens: ` +
+            `${reportedImageTokens?.toLocaleString() ?? "N/A"} image + ` +
+            `${reportedTextTokens?.toLocaleString() ?? "N/A"} unreturned text.`;
 }
 
 function renderImageExplanation(usage, size, quality) {
@@ -1126,13 +1138,20 @@ function renderImageExplanation(usage, size, quality) {
         ? "N/A"
         : String(values.textTokens);
     const expected = expectedImageOutputTokens(size, quality);
+    const outputImage = values.outputImageTokens === null || values.outputImageTokens === undefined
+        ? "N/A"
+        : String(values.outputImageTokens);
+    const outputText = values.outputTextTokens === null || values.outputTextTokens === undefined
+        ? "N/A"
+        : String(values.outputTextTokens);
 
     const text = document.createElement("p");
     text.textContent = expected === null
         ? `Prompt text becomes input text tokens (${input}). Size or quality used auto, so the output image-token count was only known after generation (${output}). ` +
             "There is no flat per-image fee in this demo path \u2014 billing is token-based."
         : `Prompt text becomes input text tokens (${input}). ${quality} quality at ${size.replace("x", "\u00D7")} has a fixed output budget of ` +
-            `${expected.toLocaleString()} image tokens; the API reported ${output}. Visual complexity and file size do not change that output budget.`;
+            `${expected.toLocaleString()} image tokens; the API reported ${outputImage} image tokens plus ${outputText} unreturned text tokens, ` +
+            `for ${output} total output tokens. Visual complexity and file size do not change the fixed image-token component.`;
 
     node.replaceChildren(text);
 }
@@ -1396,7 +1415,7 @@ async function generateImage() {
         el("imagePlaceholder").classList.add("hidden");
 
         renderImageUsage(el("imageUsageCards"), result.usage);
-        renderImageOutputEstimate(result.usage?.outputTokens);
+        renderImageOutputEstimate(result.usage);
         renderImageExplanation(result.usage, size, quality);
         setStatus("Image done.");
     } catch (err) {

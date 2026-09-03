@@ -44,6 +44,19 @@ public sealed record EmbeddingAnalogyRequest(
     string? RelationFrom,
     string? RelationTo);
 
+/// <summary>Static embedding nearest-neighbour request.</summary>
+public sealed record EmbeddingNearestNeighboursRequest(
+    string? PositiveA,
+    string? Negative,
+    string? PositiveB);
+
+/// <summary>Static embedding relationship comparison request.</summary>
+public sealed record EmbeddingRelationshipRequest(
+    string? FromA,
+    string? ToA,
+    string? FromB,
+    string? ToB);
+
 /// <summary>Live embedding comparison request.</summary>
 public sealed record LiveEmbeddingCompareRequest(
     string? First,
@@ -124,6 +137,23 @@ public sealed record EmbeddingAnalogyResponse(
     int VocabularyCount,
     string Expression,
     IReadOnlyList<EmbeddingCandidate> Candidates,
+    EmbeddingRelationship Relationship,
+    IReadOnlyDictionary<string, IReadOnlyList<float>> VectorPreviews);
+
+public sealed record EmbeddingNearestNeighboursResponse(
+    string Origin,
+    string Dataset,
+    int Dimensions,
+    int VocabularyCount,
+    string Expression,
+    IReadOnlyList<EmbeddingCandidate> Candidates,
+    IReadOnlyDictionary<string, IReadOnlyList<float>> VectorPreviews);
+
+public sealed record EmbeddingRelationshipResponse(
+    string Origin,
+    string Dataset,
+    int Dimensions,
+    int VocabularyCount,
     EmbeddingRelationship Relationship,
     IReadOnlyDictionary<string, IReadOnlyList<float>> VectorPreviews);
 

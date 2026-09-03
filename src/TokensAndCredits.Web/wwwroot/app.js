@@ -8,10 +8,37 @@ const state = {
     embeddingManifest: null,
     embeddingProviders: null,
     embeddingResult: null,
+    embeddingRelationshipResult: null,
+    embeddingAnalogyResult: null,
     liveEmbeddingResult: null,
 };
 
 const el = (id) => document.getElementById(id);
+const THEME_STORAGE_KEY = "tokens-and-credits-theme";
+
+function applyTheme(theme, persist = true) {
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+    if (persist) {
+        localStorage.setItem(THEME_STORAGE_KEY, theme);
+    }
+
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    el("themeToggle").setAttribute("aria-label", `Switch to ${nextTheme} mode`);
+    el("themeToggleIcon").textContent = theme === "dark" ? "\u2600" : "\u263E";
+    el("themeToggleLabel").textContent = `${nextTheme[0].toUpperCase()}${nextTheme.slice(1)} mode`;
+    const background = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim();
+    el("themeColor").setAttribute("content", background);
+}
+
+function wireThemeToggle() {
+    const initialTheme = document.documentElement.dataset.theme === "light" ? "light" : "dark";
+    applyTheme(initialTheme, false);
+    el("themeToggle").addEventListener("click", () => {
+        const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+        applyTheme(nextTheme);
+    });
+}
 
 function debounce(fn, ms) {
     let timer;
@@ -1425,21 +1452,24 @@ const MERGE_PHRASE_FALLBACK = {
     words: [{"word":"I","steps":[],"finalTokens":[{"text":"I","id":40}],"rejectedPairs":[],"verified":true},{"word":" love","finalTokens":[{"text":" love","id":3047}],"rejectedPairs":[],"verified":true,"steps":[{"rank":305,"left":" ","right":"l","result":" l","candidates":[{"left":" ","right":"l","rank":305,"chosen":true},{"left":"o","right":"v","rank":569,"chosen":false},{"left":"v","right":"e","rank":737,"chosen":false},{"left":"l","right":"o","rank":746,"chosen":false}]},{"rank":569,"left":"o","right":"v","result":"ov","candidates":[{"left":"o","right":"v","rank":569,"chosen":true},{"left":"v","right":"e","rank":737,"chosen":false},{"left":" l","right":"o","rank":1445,"chosen":false}]},{"rank":1048,"left":"ov","right":"e","result":"ove","candidates":[{"left":"ov","right":"e","rank":1048,"chosen":true},{"left":" l","right":"ov","rank":7106,"chosen":false}]},{"rank":3047,"left":" l","right":"ove","result":" love","candidates":[{"left":" l","right":"ove","rank":3047,"chosen":true}]}]},{"word":" tokenization","finalTokens":[{"text":" token","id":6602},{"text":"ization","id":2860}],"rejectedPairs":[{"left":" token","right":"ization","glued":" tokenization"}],"verified":true,"steps":[{"rank":260,"left":" ","right":"t","result":" t","candidates":[{"left":" ","right":"t","rank":260,"chosen":true},{"left":"e","right":"n","rank":262,"chosen":false},{"left":"o","right":"n","rank":263,"chosen":false},{"left":"a","right":"t","rank":266,"chosen":false},{"left":"i","right":"z","rank":482,"chosen":false}]},{"rank":262,"left":"e","right":"n","result":"en","candidates":[{"left":"e","right":"n","rank":262,"chosen":true},{"left":"o","right":"n","rank":263,"chosen":false},{"left":"a","right":"t","rank":266,"chosen":false},{"left":" t","right":"o","rank":316,"chosen":false},{"left":"i","right":"z","rank":482,"chosen":false}]},{"rank":263,"left":"o","right":"n","result":"on","candidates":[{"left":"o","right":"n","rank":263,"chosen":true},{"left":"a","right":"t","rank":266,"chosen":false},{"left":" t","right":"o","rank":316,"chosen":false},{"left":"i","right":"z","rank":482,"chosen":false}]},{"rank":266,"left":"a","right":"t","result":"at","candidates":[{"left":"a","right":"t","rank":266,"chosen":true},{"left":"i","right":"on","rank":294,"chosen":false},{"left":" t","right":"o","rank":316,"chosen":false},{"left":"i","right":"z","rank":482,"chosen":false}]},{"rank":294,"left":"i","right":"on","result":"ion","candidates":[{"left":"i","right":"on","rank":294,"chosen":true},{"left":" t","right":"o","rank":316,"chosen":false},{"left":"i","right":"z","rank":482,"chosen":false}]},{"rank":316,"left":" t","right":"o","result":" to","candidates":[{"left":" t","right":"o","rank":316,"chosen":true},{"left":"at","right":"ion","rank":387,"chosen":false},{"left":"i","right":"z","rank":482,"chosen":false}]},{"rank":387,"left":"at","right":"ion","result":"ation","candidates":[{"left":"at","right":"ion","rank":387,"chosen":true},{"left":"i","right":"z","rank":482,"chosen":false}]},{"rank":482,"left":"i","right":"z","result":"iz","candidates":[{"left":"i","right":"z","rank":482,"chosen":true},{"left":"k","right":"en","rank":2144,"chosen":false}]},{"rank":2144,"left":"k","right":"en","result":"ken","candidates":[{"left":"k","right":"en","rank":2144,"chosen":true},{"left":"iz","right":"ation","rank":2860,"chosen":false}]},{"rank":2860,"left":"iz","right":"ation","result":"ization","candidates":[{"left":"iz","right":"ation","rank":2860,"chosen":true},{"left":" to","right":"ken","rank":6602,"chosen":false}]},{"rank":6602,"left":" to","right":"ken","result":" token","candidates":[{"left":" to","right":"ken","rank":6602,"chosen":true}]}]}],
 };
 
-// How long to hold a frame before advancing, scaled to its caption length so there is always
-// enough time to read it (longer explanations stay up longer).
-function frameHold(frame) {
-    const len = (frame && frame.note ? frame.note.length : 0);
-    return Math.min(6300, Math.max(2550, 1800 + len * 42));
+// Keep each merge readable without delaying the first visible change.
+function frameHold() {
+    return 1700;
 }
 
-// Render the first frame immediately, then schedule the rest with read-time-based holds.
+// Render the starting state immediately, pause briefly, then advance at a steady pace.
 function scheduleFrames(frames, render) {
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        render(frames[frames.length - 1]);
+        return;
+    }
+
     render(frames[0]);
-    let elapsed = 0;
+    let elapsed = 900;
     for (let i = 1; i < frames.length; i++) {
-        elapsed += frameHold(frames[i - 1]);
         const frame = frames[i];
         explainer.subTimers.push(setTimeout(() => render(frame), elapsed));
+        elapsed += frameHold();
     }
 }
 
@@ -1976,11 +2006,14 @@ async function loadMergeTrace() {
 async function openExplainer() {
     explainerStopAuto();
     explainer.index = 0;
-    await loadMergeTrace();
     el("explainer").classList.remove("hidden");
     document.body.classList.add("modal-open");
     el("explainerClose").focus();
     explainerRender();
+    await loadMergeTrace();
+    if (!el("explainer").classList.contains("hidden") && explainer.index === 0) {
+        explainerRender();
+    }
 }
 
 function closeExplainer() {
@@ -1988,6 +2021,28 @@ function closeExplainer() {
     el("explainer").classList.add("hidden");
     document.body.classList.remove("modal-open");
     el("explainerOpen").focus();
+}
+
+function trapExplainerFocus(event) {
+    if (event.key !== "Tab" || el("explainer").classList.contains("hidden")) {
+        return;
+    }
+    const focusable = [...el("explainer").querySelectorAll(
+        "button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), "
+        + "[tabindex]:not([tabindex='-1'])",
+    )];
+    if (focusable.length === 0) {
+        return;
+    }
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+    }
 }
 
 function wireExplainer() {
@@ -2004,7 +2059,9 @@ function wireExplainer() {
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape" && !el("explainer").classList.contains("hidden")) {
             closeExplainer();
+            return;
         }
+        trapExplainerFocus(event);
     });
 }
 
@@ -2053,12 +2110,20 @@ const LIVE_EMBEDDING_DEFAULTS = {
 };
 
 const embeddingDemo = {
-    index: 0,
     mode: "static",
     terminology: "technical",
     request: { ...EMBEDDING_PRESETS[0] },
+    relationshipRequest: {
+        fromA: "man",
+        toA: "king",
+        fromB: "woman",
+        toB: "queen",
+    },
     liveRequest: { ...LIVE_EMBEDDING_DEFAULTS },
-    loading: false,
+    loading: null,
+    relationshipStale: false,
+    analogyStale: false,
+    liveStale: false,
 };
 
 function makeNode(tag, className, text) {
@@ -2135,9 +2200,25 @@ function renderEmbeddingSourceSwitch() {
     );
 }
 
+function captureEmbeddingDraft() {
+    if (embeddingDemo.mode === "live") {
+        if (el("liveEmbeddingfirst")) {
+            embeddingDemo.liveRequest = readLiveEmbeddingForm();
+        }
+        return;
+    }
+
+    if (el("embeddingPositiveA")) {
+        embeddingDemo.request = readAnalogyForm();
+    }
+    if (el("embeddingRelationshipFromA")) {
+        embeddingDemo.relationshipRequest = readRelationshipForm();
+    }
+}
+
 function setEmbeddingMode(mode) {
+    captureEmbeddingDraft();
     embeddingDemo.mode = mode;
-    embeddingDemo.index = 0;
     if (mode === "live") {
         setEmbeddingStatus(
             liveEmbeddingAvailable()
@@ -2152,6 +2233,7 @@ function setEmbeddingMode(mode) {
 }
 
 function setEmbeddingTerminology(terminology) {
+    captureEmbeddingDraft();
     embeddingDemo.terminology = terminology;
     renderEmbeddingStage();
 }
@@ -2199,8 +2281,8 @@ function buildContextStage(stage) {
     stage.appendChild(layout);
 }
 
-function vectorPreviewFor(word) {
-    const previews = state.embeddingResult?.vectorPreviews || {};
+function vectorPreviewFor(word, result = state.embeddingResult) {
+    const previews = result?.vectorPreviews || {};
     const direct = previews[word];
     if (Array.isArray(direct)) {
         return direct;
@@ -2254,8 +2336,8 @@ function buildVectorStage(stage) {
     stage.append(intro, list, note);
 }
 
-function relationshipValues() {
-    const result = state.embeddingResult || {};
+function relationshipValues(result = state.embeddingResult) {
+    result ||= {};
     const relationship = result.relationship || {};
     return {
         cosine: Number(result.relationshipCosine ?? relationship.cosine ?? 0),
@@ -2263,24 +2345,86 @@ function relationshipValues() {
     };
 }
 
-function buildRelationshipDiagram() {
-    const values = relationshipValues();
+function buildRelationshipDiagram(
+    result = state.embeddingResult,
+    request = {
+        fromA: embeddingDemo.request.negative,
+        toA: embeddingDemo.request.positiveB,
+        fromB: embeddingDemo.request.relationFrom,
+        toB: embeddingDemo.request.relationTo,
+    },
+) {
+    const values = relationshipValues(result);
     const panel = makeNode("div", "relationship-visual");
     const canvas = makeNode("div", "relation-canvas");
-    const first = makeNode("div", "relation-vector relation-vector-primary");
-    const second = makeNode("div", "relation-vector relation-vector-secondary");
-    second.style.setProperty("--relation-angle", `${-values.angle}deg`);
-    first.appendChild(makeNode(
-        "span",
-        "relation-label",
-        `${embeddingDemo.request.negative} \u2192 ${embeddingDemo.request.positiveB}`,
-    ));
-    second.appendChild(makeNode(
-        "span",
-        "relation-label",
-        `${embeddingDemo.request.relationFrom} \u2192 ${embeddingDemo.request.relationTo}`,
-    ));
-    canvas.append(first, second, makeNode("span", "relation-origin", ""));
+    const legend = makeNode("div", "relation-legend");
+    [
+    ["primary", `${request.fromA} \u2192 ${request.toA}`],
+    ["secondary", `${request.fromB} \u2192 ${request.toB}`],
+    ].forEach(([tone, labelText]) => {
+    const item = makeNode("span", "relation-legend-item");
+    item.append(
+        makeNode("i", `relation-legend-swatch ${tone}`, ""),
+        makeNode("span", "", labelText),
+    );
+    legend.appendChild(item);
+    });
+
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("class", "relation-svg");
+    svg.setAttribute("viewBox", "0 0 500 220");
+    svg.setAttribute("preserveAspectRatio", "none");
+    svg.setAttribute("aria-hidden", "true");
+
+    const appendArrow = (tone, angleDegrees) => {
+    const start = { x: 105, y: 182 };
+    const length = 220;
+    const radians = angleDegrees * Math.PI / 180;
+    const end = {
+        x: start.x + length * Math.cos(radians),
+        y: start.y + length * Math.sin(radians),
+    };
+    const unit = {
+        x: (end.x - start.x) / length,
+        y: (end.y - start.y) / length,
+    };
+    const normal = { x: -unit.y, y: unit.x };
+    const back = {
+        x: end.x - unit.x * 18,
+        y: end.y - unit.y * 18,
+    };
+    const firstPoint = {
+        x: back.x + normal.x * 8,
+        y: back.y + normal.y * 8,
+    };
+    const secondPoint = {
+        x: back.x - normal.x * 8,
+        y: back.y - normal.y * 8,
+    };
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("class", `relation-svg-line ${tone}`);
+    line.setAttribute("x1", String(start.x));
+    line.setAttribute("y1", String(start.y));
+    line.setAttribute("x2", String(end.x));
+    line.setAttribute("y2", String(end.y));
+    const head = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    head.setAttribute("class", `relation-svg-head ${tone}`);
+    head.setAttribute(
+        "d",
+        `M${firstPoint.x} ${firstPoint.y} L${end.x} ${end.y} L${secondPoint.x} ${secondPoint.y}`,
+    );
+    svg.append(line, head);
+    };
+
+    appendArrow("primary", -8);
+    appendArrow("secondary", -(8 + Math.min(35, Math.max(8, values.angle))));
+    const origin = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    origin.setAttribute("class", "relation-svg-origin");
+    origin.setAttribute("cx", "105");
+    origin.setAttribute("cy", "182");
+    origin.setAttribute("r", "6");
+    svg.appendChild(origin);
+    canvas.append(legend, svg);
 
     const metrics = makeNode("div", "relationship-metrics");
     const cosine = makeNode("div", "relationship-metric");
@@ -2290,7 +2434,7 @@ function buildRelationshipDiagram() {
     );
     const angle = makeNode("div", "relationship-metric");
     angle.append(
-        makeNode("span", "", embeddingCopy("Measured angle", "Angle between directions")),
+        makeNode("span", "", embeddingCopy("Equivalent angle", "Angle between directions")),
         makeNode("strong", "", `${values.angle.toFixed(1)}\u00B0`),
     );
     metrics.append(cosine, angle);
@@ -2332,17 +2476,17 @@ function buildRelationshipStage(stage) {
     stage.appendChild(note);
 }
 
-function embeddingCandidates() {
-    return state.embeddingResult?.candidates || state.embeddingResult?.rankedCandidates || [];
+function embeddingCandidates(result = state.embeddingResult) {
+    return result?.candidates || result?.rankedCandidates || [];
 }
 
-function renderCandidateRanking() {
+function renderCandidateRanking(result = state.embeddingResult) {
     const panel = makeNode("div", "analogy-results");
     panel.appendChild(makeNode("h3", "", embeddingCopy(
         "Nearest neighbours by cosine similarity",
         "Words closest to the calculated location",
     )));
-    const candidates = embeddingCandidates();
+    const candidates = embeddingCandidates(result);
     if (candidates.length === 0) {
         panel.appendChild(makeNode("p", "stage-note", embeddingCopy(
             "Run the calculation to rank the nearest vocabulary words.",
@@ -2394,8 +2538,15 @@ function readAnalogyForm() {
         positiveA: el("embeddingPositiveA").value.trim().toLowerCase(),
         negative: el("embeddingNegative").value.trim().toLowerCase(),
         positiveB: el("embeddingPositiveB").value.trim().toLowerCase(),
-        relationFrom: el("embeddingRelationFrom").value.trim().toLowerCase(),
-        relationTo: el("embeddingRelationTo").value.trim().toLowerCase(),
+    };
+}
+
+function readRelationshipForm() {
+    return {
+        fromA: el("embeddingRelationshipFromA").value.trim().toLowerCase(),
+        toA: el("embeddingRelationshipToA").value.trim().toLowerCase(),
+        fromB: el("embeddingRelationshipFromB").value.trim().toLowerCase(),
+        toB: el("embeddingRelationshipToB").value.trim().toLowerCase(),
     };
 }
 
@@ -2697,7 +2848,7 @@ function liveSimilarityCard(title, leftRole, rightRole, tone) {
     card.append(
         makeNode("h3", "", title),
         score,
-        makeNode("span", "live-similarity-angle", `${values.angle.toFixed(1)}\u00B0 measured angle`),
+        makeNode("span", "live-similarity-angle", `${values.angle.toFixed(1)}\u00B0 equivalent angle`),
         track,
     );
     return card;
@@ -2955,35 +3106,385 @@ const EMBEDDING_STEPS = [
     },
 ];
 
-const LIVE_EMBEDDING_STEP_ORDER = ["context", "analogy", "vectors", "relationships", "bridge"];
-
-function currentEmbeddingSteps() {
-    if (embeddingDemo.mode !== "live") {
-        return EMBEDDING_STEPS;
-    }
-
-    return LIVE_EMBEDDING_STEP_ORDER.map((key) =>
-        EMBEDDING_STEPS.find((step) => step.key === key));
+function embeddingResultState(isStale) {
+    return makeNode(
+        "span",
+        `embedding-result-state${isStale ? " stale" : ""}`,
+        isStale ? "Inputs changed \u2014 calculate again" : "Calculated result",
+    );
 }
 
-function renderEmbeddingSteps() {
-    const steps = el("embeddingSteps");
-    steps.replaceChildren();
-    currentEmbeddingSteps().forEach((step, index) => {
-        let label = embeddingDemo.mode === "live" && step.liveLabel ? step.liveLabel : step.label;
-        if (usesEmbeddingAnalogy()) {
-            label = embeddingDemo.mode === "live" && step.liveAnalogyLabel
-                ? step.liveAnalogyLabel
-                : step.analogyLabel;
-        }
-        const button = makeNode("button", "embedding-step", label);
-        button.type = "button";
-        button.setAttribute("role", "tab");
-        button.setAttribute("aria-selected", String(index === embeddingDemo.index));
-        button.classList.toggle("active", index === embeddingDemo.index);
-        button.addEventListener("click", () => embeddingGo(index));
-        steps.appendChild(button);
+function markEmbeddingStale(kind) {
+    const property = `${kind}Stale`;
+    embeddingDemo[property] = true;
+    const stateNode = el(`${kind}ResultState`);
+    if (stateNode) {
+        stateNode.textContent = "Inputs changed \u2014 calculate again";
+        stateNode.classList.add("stale");
+    }
+}
+
+function wireEmbeddingDraftInputs(ids, kind) {
+    ids.forEach((id) => {
+        el(id)?.addEventListener("input", () => markEmbeddingStale(kind));
     });
+}
+
+function embeddingPairFields(firstId, firstLabel, firstValue, secondId, secondLabel, secondValue) {
+    const row = makeNode("div", "embedding-pair-fields");
+    row.append(
+        inputField(firstId, firstLabel, firstValue),
+        makeNode("span", "relation-arrow", "\u2192"),
+        inputField(secondId, secondLabel, secondValue),
+    );
+    return row;
+}
+
+function buildStaticRelationshipExperiment() {
+    const section = makeNode("section", "embedding-experiment");
+    const form = makeNode("form", "embedding-experiment-form");
+    form.append(
+        makeNode("h3", "", embeddingCopy(
+            "Measure relationship similarity",
+            "Compare two directions",
+        )),
+        makeNode("p", "stage-note", embeddingCopy(
+            "Compare two known vector offsets. Cosine similarity and angle express the same directional comparison.",
+            "Compare how closely two word-to-word directions point the same way. The score and angle describe the same match.",
+        )),
+        embeddingPairFields(
+            "embeddingRelationshipFromA",
+            "Relationship A: from",
+            embeddingDemo.relationshipRequest.fromA,
+            "embeddingRelationshipToA",
+            "Relationship A: to",
+            embeddingDemo.relationshipRequest.toA,
+        ),
+        embeddingPairFields(
+            "embeddingRelationshipFromB",
+            "Relationship B: from",
+            embeddingDemo.relationshipRequest.fromB,
+            "embeddingRelationshipToB",
+            "Relationship B: to",
+            embeddingDemo.relationshipRequest.toB,
+        ),
+    );
+    const run = makeNode(
+        "button",
+        "primary embedding-run",
+        embeddingDemo.loading === "relationship"
+            ? "Measuring relationship similarity\u2026"
+            : embeddingCopy("Measure relationship similarity", "Compare directions"),
+    );
+    run.type = "submit";
+    run.disabled = Boolean(embeddingDemo.loading);
+    form.appendChild(run);
+    form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        runEmbeddingRelationship(readRelationshipForm());
+    });
+
+    const resultPanel = makeNode("div", "embedding-result-panel");
+    const result = state.embeddingRelationshipResult;
+    if (!result) {
+        resultPanel.appendChild(makeNode(
+            "p",
+            "embedding-empty-state",
+            embeddingCopy(
+                "No measurement yet. Press the button to compare the two relationship offsets.",
+                "No comparison yet. Press the button when you are ready.",
+            ),
+        ));
+    } else {
+        const heading = makeNode("div", "embedding-result-heading");
+        const stateNode = embeddingResultState(embeddingDemo.relationshipStale);
+        stateNode.id = "relationshipResultState";
+        heading.append(
+            makeNode("h4", "", embeddingCopy("Directional comparison", "Direction comparison")),
+            stateNode,
+        );
+        resultPanel.append(
+            heading,
+            buildRelationshipDiagram(result, embeddingDemo.relationshipRequest),
+            makeNode(
+                "p",
+                "stage-note embedding-result-note",
+                embeddingCopy(
+                    "The angle is derived from high-dimensional vector directions. The diagram is not a two-dimensional embedding projection.",
+                    "The sketch compares directions. It does not show the complete word map.",
+                ),
+            ),
+        );
+    }
+    section.append(form, resultPanel);
+    queueMicrotask(() => wireEmbeddingDraftInputs(
+        [
+            "embeddingRelationshipFromA",
+            "embeddingRelationshipToA",
+            "embeddingRelationshipFromB",
+            "embeddingRelationshipToB",
+        ],
+        "relationship",
+    ));
+    return section;
+}
+
+function buildStaticAnalogyExperiment() {
+    const section = makeNode("section", "embedding-experiment");
+    const form = makeNode("form", "embedding-experiment-form");
+    form.append(
+        makeNode("h3", "", embeddingCopy(
+            "Run vector arithmetic",
+            "Move through the word map",
+        )),
+        makeNode("p", "stage-note", embeddingCopy(
+            "Create a new vector with A \u2212 B + C, then search for the nearest remaining words.",
+            "Start at A, move away from B, then move toward C. Find the closest remaining words.",
+        )),
+    );
+    const presets = makeNode("div", "analogy-presets");
+    presets.appendChild(makeNode("span", "preset-label", "Fill an example"));
+    EMBEDDING_PRESETS.forEach((preset) => {
+        const button = makeNode("button", "preset-button", preset.label);
+        button.type = "button";
+        button.addEventListener("click", () => {
+            captureEmbeddingDraft();
+            embeddingDemo.request = { ...preset };
+            embeddingDemo.analogyStale = Boolean(state.embeddingAnalogyResult);
+            renderEmbeddingStage();
+        });
+        presets.appendChild(button);
+    });
+    const equation = makeNode("div", "analogy-equation");
+    equation.append(
+        inputField("embeddingPositiveA", "Add A", embeddingDemo.request.positiveA),
+        makeNode("span", "equation-operator", "\u2212"),
+        inputField("embeddingNegative", "Subtract B", embeddingDemo.request.negative),
+        makeNode("span", "equation-operator", "+"),
+        inputField("embeddingPositiveB", "Add C", embeddingDemo.request.positiveB),
+    );
+    const run = makeNode(
+        "button",
+        "primary embedding-run",
+        embeddingDemo.loading === "analogy"
+            ? "Finding nearest words\u2026"
+            : embeddingCopy("Find nearest words", "Find the closest words"),
+    );
+    run.type = "submit";
+    run.disabled = Boolean(embeddingDemo.loading);
+    form.append(presets, equation, run);
+    form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        runEmbeddingAnalogy(readAnalogyForm());
+    });
+
+    const resultPanel = makeNode("div", "embedding-result-panel");
+    const result = state.embeddingAnalogyResult;
+    if (!result) {
+        resultPanel.appendChild(makeNode(
+            "p",
+            "embedding-empty-state",
+            embeddingCopy(
+                "No search yet. Examples fill the fields only; press the button to calculate.",
+                "No search yet. Pick or type an example, then press the button.",
+            ),
+        ));
+    } else {
+        const heading = makeNode("div", "embedding-result-heading");
+        const stateNode = embeddingResultState(embeddingDemo.analogyStale);
+        stateNode.id = "analogyResultState";
+        heading.append(
+            makeNode("h4", "", result.expression || "A \u2212 B + C"),
+            stateNode,
+        );
+        resultPanel.append(
+            heading,
+            renderCandidateRanking(result),
+            makeNode(
+                "p",
+                "stage-note embedding-result-note",
+                embeddingCopy(
+                    "This result is a nearest-neighbour search from the calculated vector. It does not measure the two relationships above.",
+                    "This result finds words near the new map location. It is separate from the direction comparison above.",
+                ),
+            ),
+        );
+    }
+    section.append(form, resultPanel);
+    queueMicrotask(() => wireEmbeddingDraftInputs(
+        ["embeddingPositiveA", "embeddingNegative", "embeddingPositiveB"],
+        "analogy",
+    ));
+    return section;
+}
+
+function buildStaticVectorDetails() {
+    const details = makeNode("details", "embedding-details");
+    details.appendChild(makeNode("summary", "", embeddingCopy(
+        "Inspect vector coordinates",
+        "Inspect word addresses",
+    )));
+    const body = makeNode("div", "embedding-details-body");
+    const previews = {
+        ...(state.embeddingRelationshipResult?.vectorPreviews || {}),
+        ...(state.embeddingAnalogyResult?.vectorPreviews || {}),
+    };
+    const words = Object.keys(previews);
+    if (words.length === 0) {
+        body.appendChild(makeNode(
+            "p",
+            "stage-note",
+            "Run either experiment to inspect the first six coordinates used in its calculation.",
+        ));
+    } else {
+        const list = makeNode("div", "vector-list");
+        words.forEach((word) => {
+            const values = previews[word] || [];
+            const row = makeNode("div", "vector-row");
+            row.append(
+                makeNode("strong", "vector-word", word),
+                makeNode(
+                    "code",
+                    "vector-values",
+                    `[${values.map((value) => Number(value).toFixed(4)).join(", ")}, ...]`,
+                ),
+            );
+            list.appendChild(row);
+        });
+        body.appendChild(list);
+    }
+    details.appendChild(body);
+    return details;
+}
+
+function buildEmbeddingSummary() {
+    const summary = makeNode("section", "embedding-workspace-summary");
+    summary.append(
+        makeNode("h3", "", "What to take away"),
+        makeNode(
+            "p",
+            "",
+            embeddingCopy(
+                "Similarity compares existing vector directions. Vector arithmetic creates a new vector and searches for nearby items. Static word embeddings assign one vector to each word; transformers compute contextual hidden states.",
+                "One experiment compares existing directions. The other creates a new map location. Static word maps stay fixed, while transformers change token locations for each context.",
+            ),
+        ),
+    );
+    return summary;
+}
+
+function buildStaticEmbeddingWorkspace(stage) {
+    const workspace = makeNode("div", "embedding-workspace");
+    workspace.append(
+        buildStaticRelationshipExperiment(),
+        buildStaticAnalogyExperiment(),
+        buildStaticVectorDetails(),
+        buildEmbeddingSummary(),
+    );
+    stage.appendChild(workspace);
+}
+
+function buildLiveEmbeddingWorkspace(stage) {
+    const workspace = makeNode("div", "embedding-workspace");
+    const form = makeNode("form", "live-embedding-workspace-form");
+    form.append(
+        makeNode("h3", "", embeddingCopy(
+            "Generate Azure text embeddings",
+            "Place four texts on the map",
+        )),
+        makeNode(
+            "p",
+            "stage-note",
+            embeddingCopy(
+                "The model returns one embedding for each complete input. One call supplies both experiments below.",
+                "The model gives each complete text one location. One call supplies both comparisons below.",
+            ),
+        ),
+    );
+    const fields = makeNode("div", "live-text-grid");
+    fields.append(
+        liveTextField("first", "A", "first financial input"),
+        liveTextField("second", "B", "subtract this embedding"),
+        liveTextField("third", "C", "add this embedding"),
+        liveTextField("target", "Target", "compare with A \u2212 B + C"),
+    );
+    const run = makeNode(
+        "button",
+        "primary embedding-run",
+        embeddingDemo.loading === "live" ? "Generating Azure embeddings\u2026" : "Generate Azure embeddings",
+    );
+    run.type = "submit";
+    run.disabled = Boolean(embeddingDemo.loading) || !liveEmbeddingAvailable();
+    form.append(fields, run);
+    form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        runLiveEmbeddingCompare(readLiveEmbeddingForm());
+    });
+    workspace.appendChild(form);
+
+    if (!state.liveEmbeddingResult) {
+        workspace.appendChild(makeNode(
+            "p",
+            "embedding-empty-state live-workspace-empty",
+            liveEmbeddingAvailable()
+                ? "No model call yet. Generate embeddings when you are ready."
+                : "The Azure endpoint or embedding deployment is not configured.",
+        ));
+    } else {
+        const results = makeNode("div", "live-workspace-results");
+        const heading = makeNode("div", "embedding-result-heading");
+        const stateNode = embeddingResultState(embeddingDemo.liveStale);
+        stateNode.id = "liveResultState";
+        heading.append(makeNode("h3", "", "Azure embedding results"), stateNode);
+        results.appendChild(heading);
+
+        const similarity = makeNode("section", "live-workspace-section");
+        similarity.append(
+            makeNode("h4", "", embeddingCopy("Pairwise similarity", "Compare existing directions")),
+            makeNode("p", "stage-note", embeddingCopy(
+                "Cosine similarity and the equivalent angle measure how closely each pair of text vectors aligns.",
+                "The score and angle show how closely each pair points the same way.",
+            )),
+        );
+        const cards = makeNode("div", "live-similarity-grid");
+        cards.append(
+            liveSimilarityCard("Financial pair", "first", "second", "finance"),
+            liveSimilarityCard("River pair", "third", "target", "river"),
+            liveSimilarityCard("Across meanings", "first", "third", "cross"),
+        );
+        similarity.appendChild(cards);
+
+        const arithmetic = makeNode("section", "live-workspace-section");
+        const values = liveArithmeticValues();
+        arithmetic.append(
+            makeNode("h4", "", embeddingCopy("Vector arithmetic experiment", "Create a new map location")),
+            makeNode("p", "stage-note", embeddingCopy(
+                "The server computes A \u2212 B + C, then compares that vector with Target.",
+                "Start at A, move away from B, move toward C, then compare the result with Target.",
+            )),
+        );
+        const arithmeticResult = makeNode("div", "live-arithmetic-result");
+        arithmeticResult.append(
+            makeNode("strong", "live-experiment-score", values.cosine.toFixed(3)),
+            makeNode("span", "live-similarity-angle", `${values.angle.toFixed(1)}\u00B0 equivalent angle`),
+        );
+        arithmetic.appendChild(arithmeticResult);
+        results.append(similarity, arithmetic);
+        workspace.appendChild(results);
+
+        const details = makeNode("details", "embedding-details");
+        details.appendChild(makeNode("summary", "", "Inspect embedding coordinates"));
+        const body = makeNode("div", "embedding-details-body");
+        buildLiveVectorStage(body);
+        details.appendChild(body);
+        workspace.appendChild(details);
+    }
+    workspace.appendChild(buildEmbeddingSummary());
+    stage.appendChild(workspace);
+    queueMicrotask(() => wireEmbeddingDraftInputs(
+        LIVE_TEXT_ROLES.map(({ key }) => `liveEmbedding${key}`),
+        "live",
+    ));
 }
 
 function renderEmbeddingProvenance() {
@@ -2999,28 +3500,18 @@ function renderEmbeddingProvenance() {
     const vocabulary = embeddingVocabularyCount();
     node.textContent = state.embeddingManifest
         ? `${embeddingDatasetLabel()} \u00B7 ${embeddingDimension()} dimensions \u00B7 ${vocabulary.toLocaleString()} bundled words \u00B7 local`
-        : "Loading the local embedding dataset...";
+        : "Loading the local embedding dataset\u2026";
 }
 
 function renderEmbeddingStage() {
     renderEmbeddingSourceSwitch();
-    renderEmbeddingSteps();
-    const steps = currentEmbeddingSteps();
-    const step = steps[embeddingDemo.index];
-    let caption = embeddingDemo.mode === "live" && step.liveCaption
-        ? step.liveCaption
-        : step.caption;
-    if (usesEmbeddingAnalogy()) {
-        caption = embeddingDemo.mode === "live" && step.liveAnalogyCaption
-            ? step.liveAnalogyCaption
-            : step.analogyCaption;
-    }
-    el("embeddingCaption").textContent = caption;
     const stage = el("embeddingStage");
     stage.replaceChildren();
-    step.build(stage);
-    el("embeddingPrev").disabled = embeddingDemo.index === 0;
-    el("embeddingNext").disabled = embeddingDemo.index === steps.length - 1;
+    if (embeddingDemo.mode === "live") {
+        buildLiveEmbeddingWorkspace(stage);
+    } else {
+        buildStaticEmbeddingWorkspace(stage);
+    }
     renderEmbeddingProvenance();
 }
 
@@ -3060,65 +3551,87 @@ async function loadEmbeddingProviders() {
     }
 }
 
-async function runEmbeddingAnalogy(request, rerender = true) {
-    embeddingDemo.request = { ...request };
-    embeddingDemo.loading = true;
-    setEmbeddingStatus("Calculating across the bundled vocabulary...");
-    if (rerender) {
-        renderEmbeddingStage();
-    }
+async function runEmbeddingRelationship(request) {
+    captureEmbeddingDraft();
+    embeddingDemo.relationshipRequest = { ...request };
+    embeddingDemo.loading = "relationship";
+    setEmbeddingStatus("Measuring relationship similarity\u2026");
+    renderEmbeddingStage();
 
     try {
-        state.embeddingResult = await postJson("/api/embeddings/analogy", request);
+        state.embeddingRelationshipResult = await postJson("/api/embeddings/relationship", request);
+        embeddingDemo.relationshipStale = false;
         setEmbeddingStatus("");
     } catch (error) {
         setEmbeddingStatus(error.message, true);
     } finally {
-        embeddingDemo.loading = false;
-        if (rerender) {
-            renderEmbeddingStage();
-        }
+        embeddingDemo.loading = null;
+        renderEmbeddingStage();
+    }
+}
+
+async function runEmbeddingAnalogy(request) {
+    captureEmbeddingDraft();
+    embeddingDemo.request = { ...request };
+    embeddingDemo.loading = "analogy";
+    setEmbeddingStatus("Calculating across the bundled vocabulary\u2026");
+    renderEmbeddingStage();
+
+    try {
+        state.embeddingAnalogyResult = await postJson("/api/embeddings/nearest-neighbours", request);
+        state.embeddingResult = state.embeddingAnalogyResult;
+        embeddingDemo.analogyStale = false;
+        setEmbeddingStatus("");
+    } catch (error) {
+        setEmbeddingStatus(error.message, true);
+    } finally {
+        embeddingDemo.loading = null;
+        renderEmbeddingStage();
     }
 }
 
 async function runLiveEmbeddingCompare(request) {
     embeddingDemo.liveRequest = { ...request };
-    embeddingDemo.loading = true;
-    state.liveEmbeddingResult = null;
-    setEmbeddingStatus("Calling the Azure embedding model...");
+    embeddingDemo.loading = "live";
+    setEmbeddingStatus("Calling the Azure embedding model\u2026");
     renderEmbeddingStage();
 
     try {
         state.liveEmbeddingResult = await postJson("/api/embeddings/live-compare", request);
+        embeddingDemo.liveStale = false;
         setEmbeddingStatus("");
     } catch (error) {
         setEmbeddingStatus(error.message, true);
     } finally {
-        embeddingDemo.loading = false;
+        embeddingDemo.loading = null;
         renderEmbeddingStage();
     }
 }
 
-function embeddingGo(index) {
-    embeddingDemo.index = Math.max(0, Math.min(currentEmbeddingSteps().length - 1, index));
-    renderEmbeddingStage();
-}
-
 async function openEmbeddingExplainer() {
-    embeddingDemo.index = 0;
     embeddingDemo.mode = "static";
     embeddingDemo.request = { ...EMBEDDING_PRESETS[0] };
+    embeddingDemo.relationshipRequest = {
+        fromA: "man",
+        toA: "king",
+        fromB: "woman",
+        toB: "queen",
+    };
     embeddingDemo.liveRequest = { ...LIVE_EMBEDDING_DEFAULTS };
+    embeddingDemo.loading = null;
+    embeddingDemo.relationshipStale = false;
+    embeddingDemo.analogyStale = false;
+    embeddingDemo.liveStale = false;
     state.embeddingResult = null;
+    state.embeddingRelationshipResult = null;
+    state.embeddingAnalogyResult = null;
     state.liveEmbeddingResult = null;
     el("embeddingExplainer").classList.remove("hidden");
     document.body.classList.add("modal-open");
     el("embeddingClose").focus();
     renderEmbeddingStage();
-
     try {
         await Promise.all([loadEmbeddingManifest(), loadEmbeddingProviders()]);
-        await runEmbeddingAnalogy(embeddingDemo.request, false);
         renderEmbeddingStage();
     } catch (error) {
         setEmbeddingStatus(error.message, true);
@@ -3136,7 +3649,8 @@ function trapEmbeddingFocus(event) {
         return;
     }
     const focusable = [...el("embeddingExplainer").querySelectorAll(
-        "button:not(:disabled), input:not(:disabled), select:not(:disabled), [tabindex]:not([tabindex='-1'])",
+        "button:not(:disabled), input:not(:disabled), textarea:not(:disabled), select:not(:disabled), "
+        + "[tabindex]:not([tabindex='-1'])",
     )];
     if (focusable.length === 0) {
         return;
@@ -3163,25 +3677,6 @@ function wireEmbeddingExplainer() {
         if (event.target === el("embeddingExplainer")) {
             closeEmbeddingExplainer();
         }
-    });
-    el("embeddingPrev").addEventListener("click", () => embeddingGo(embeddingDemo.index - 1));
-    el("embeddingNext").addEventListener("click", () => embeddingGo(embeddingDemo.index + 1));
-    el("embeddingRestart").addEventListener("click", () => {
-        embeddingDemo.index = 0;
-        if (embeddingDemo.mode === "live") {
-            embeddingDemo.liveRequest = { ...LIVE_EMBEDDING_DEFAULTS };
-            state.liveEmbeddingResult = null;
-            setEmbeddingStatus(
-                liveEmbeddingAvailable()
-                    ? ""
-                    : "The Azure text embedding deployment is not configured.",
-                !liveEmbeddingAvailable(),
-            );
-            renderEmbeddingStage();
-            return;
-        }
-        embeddingDemo.request = { ...EMBEDDING_PRESETS[0] };
-        runEmbeddingAnalogy(embeddingDemo.request);
     });
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape" && !el("embeddingExplainer").classList.contains("hidden")) {
@@ -3283,6 +3778,7 @@ function applySamplePrompt() {
 }
 
 async function init() {
+    wireThemeToggle();
     el("model").addEventListener("change", () => {
         renderBadges(selectedModel());
         renderLogprobPlaceholder(selectedModel());

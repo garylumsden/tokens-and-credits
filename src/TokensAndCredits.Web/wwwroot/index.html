@@ -3,9 +3,11 @@
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta id="themeColor" name="theme-color" content="#0f1115" />
     <title>AI Tokens &amp; AI Credits — token + usage + credit breakdown</title>
+    <script src="theme.js?v=theme-1"></script>
     <link rel="stylesheet" href="vendor/katex/katex.min.css?v=0.18.1" />
-    <link rel="stylesheet" href="styles.css?v=embeddings-2" />
+    <link rel="stylesheet" href="styles.css?v=theme-2" />
 </head>
 <body>
     <header class="app-header">
@@ -15,6 +17,10 @@
                 <p class="subtitle">See exactly which part of your prompt is which token, where the tokens go, and what they'd cost in AI Credits.</p>
             </div>
             <div class="header-actions">
+                <button id="themeToggle" class="theme-toggle" type="button" aria-label="Switch to light mode">
+                    <span id="themeToggleIcon" aria-hidden="true">&#9728;</span>
+                    <span id="themeToggleLabel">Light mode</span>
+                </button>
                 <button id="embeddingOpen" class="ghost-button embedding-button" type="button">&#10022; How text embeddings work</button>
                 <button id="explainerOpen" class="ghost-button" type="button">&#9654; How tokenisation works</button>
             </div>
@@ -202,7 +208,21 @@
             <div class="modal-body embedding-body">
                 <blockquote class="firth-quote">
                     <p>&ldquo;You shall know a word by the company it keeps!&rdquo;</p>
-                    <cite>J. R. Firth, 1957</cite>
+                    <details class="firth-source">
+                        <summary>J. R. Firth, 1957 <span aria-hidden="true">&#9432;</span></summary>
+                        <div class="firth-citation">
+                            <cite>
+                                Firth, J. R. (1957). &ldquo;A Synopsis of Linguistic Theory,
+                                1930&ndash;1955.&rdquo; In <em>Studies in Linguistic Analysis</em>,
+                                Special Volume of the Philological Society, Oxford: Blackwell,
+                                pp. 1&ndash;32, p. 11.
+                            </cite>
+                            <a href="https://languagelog.ldc.upenn.edu/myl/Firth1957.pdf"
+                               target="_blank" rel="noopener noreferrer">
+                                Read the paper (PDF, University of Pennsylvania)
+                            </a>
+                        </div>
+                    </details>
                 </blockquote>
                 <p id="embeddingIntro" class="modal-intro">
                     GloVe learns one context-independent vector per vocabulary word from global word-word
@@ -215,32 +235,25 @@
                             aria-pressed="false">Azure text embeddings <span>live API</span></button>
                 </div>
                 <div class="embedding-terminology-control">
-                    <span>Explanation style</span>
+                    <span>Explanation language</span>
                     <div class="embedding-terminology-switch" role="group" aria-label="Explanation style">
                         <button id="embeddingTerminologyTechnical" class="embedding-terminology-option active"
-                                type="button" aria-pressed="true">Accurate terms</button>
+                                type="button" aria-pressed="true">Technical terms</button>
                         <button id="embeddingTerminologyAnalogy" class="embedding-terminology-option"
-                                type="button" aria-pressed="false">Concept analogy</button>
+                                type="button" aria-pressed="false">Plain language</button>
                     </div>
                 </div>
-                <div id="embeddingSteps" class="embedding-steps" role="tablist" aria-label="Embedding explainer steps"></div>
-                <p id="embeddingCaption" class="explainer-caption"></p>
                 <div id="embeddingStage" class="embedding-stage" aria-live="polite"></div>
                 <p id="embeddingStatus" class="embedding-status" role="status" hidden></p>
             </div>
             <div class="modal-foot">
                 <div id="embeddingProvenance" class="embedding-provenance"></div>
-                <div class="modal-actions">
-                    <button id="embeddingPrev" type="button">Back</button>
-                    <button id="embeddingRestart" type="button">&#8635; Restart</button>
-                    <button id="embeddingNext" type="button" class="primary">Next</button>
-                </div>
             </div>
         </div>
     </div>
 
     <script src="vendor/katex/katex.min.js?v=0.18.1"></script>
     <script src="vendor/katex/contrib/auto-render.min.js?v=0.18.1"></script>
-    <script src="app.js?v=embeddings-2"></script>
+    <script src="app.js?v=theme-1"></script>
 </body>
 </html>

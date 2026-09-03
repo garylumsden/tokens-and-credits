@@ -160,6 +160,83 @@ public static class TokenEndpoints
                 result.VectorPreviews));
         });
 
+        group.MapPost("/embeddings/nearest-neighbours", (
+            EmbeddingNearestNeighboursRequest request,
+            EmbeddingStore store,
+            EmbeddingAnalogyService analogyService) =>
+        {
+            var fields = new (string Name, string? Value)[]
+            {
+                ("positiveA", request.PositiveA),
+                ("negative", request.Negative),
+                ("positiveB", request.PositiveB),
+            };
+            var validationError = ValidateEmbeddingWords(fields, store);
+            if (validationError is not null)
+            {
+                return validationError;
+            }
+
+            var values = fields.Select(field => field.Value!.Trim()).ToArray();
+            if (values.Distinct(StringComparer.Ordinal).Count() != values.Length)
+            {
+                return Results.BadRequest(new EmbeddingErrorResponse(
+                    "duplicate_source_words",
+                    "PositiveA, negative, and positiveB must be distinct."));
+            }
+
+            var result = analogyService.CalculateNearestNeighbours(values[0], values[1], values[2]);
+            return Results.Ok(new EmbeddingNearestNeighboursResponse(
+                EmbeddingStore.Origin,
+                EmbeddingStore.DatasetName,
+                store.Dimensions,
+                store.VocabularyCount,
+                result.Expression,
+                result.Candidates,
+                result.VectorPreviews));
+        });
+
+        group.MapPost("/embeddings/relationship", (
+            EmbeddingRelationshipRequest request,
+            EmbeddingStore store,
+            EmbeddingAnalogyService analogyService) =>
+        {
+            var fields = new (string Name, string? Value)[]
+            {
+                ("fromA", request.FromA),
+                ("toA", request.ToA),
+                ("fromB", request.FromB),
+                ("toB", request.ToB),
+            };
+            var validationError = ValidateEmbeddingWords(fields, store);
+            if (validationError is not null)
+            {
+                return validationError;
+            }
+
+            var values = fields.Select(field => field.Value!.Trim()).ToArray();
+            if (string.Equals(values[0], values[1], StringComparison.Ordinal)
+                || string.Equals(values[2], values[3], StringComparison.Ordinal))
+            {
+                return Results.BadRequest(new EmbeddingErrorResponse(
+                    "duplicate_relation_words",
+                    "Each relationship must use two distinct words."));
+            }
+
+            var result = analogyService.CompareRelationships(
+                values[0],
+                values[1],
+                values[2],
+                values[3]);
+            return Results.Ok(new EmbeddingRelationshipResponse(
+                EmbeddingStore.Origin,
+                EmbeddingStore.DatasetName,
+                store.Dimensions,
+                store.VocabularyCount,
+                result.Relationship,
+                result.VectorPreviews));
+        });
+
         group.MapPost("/embeddings/live-compare", async (
             LiveEmbeddingCompareRequest request,
             IAzureEmbeddingService azureEmbeddingService,
@@ -508,6 +585,7 @@ public static class TokenEndpoints
 
                     await WriteSseAsync(response, "done", new AnalyzeResponse(local, modelBlock), ct);
                 }
+
             }
             catch (OperationCanceledException) when (ct.IsCancellationRequested)
             {
@@ -657,6 +735,38 @@ public static class TokenEndpoints
         });
 
         return app;
+    }
+
+    private static IResult? ValidateEmbeddingWords(
+        IReadOnlyList<(string Name, string? Value)> fields,
+        EmbeddingStore store)
+    {
+        foreach (var field in fields)
+        {
+            if (string.IsNullOrWhiteSpace(field.Value))
+            {
+                return Results.BadRequest(new EmbeddingErrorResponse(
+                    "invalid_request",
+                    $"Field '{field.Name}' is required."));
+            }
+
+            if (field.Value.Length > 64)
+            {
+                return Results.BadRequest(new EmbeddingErrorResponse(
+                    "invalid_request",
+                    $"Field '{field.Name}' must not exceed 64 characters."));
+            }
+
+            var value = field.Value.Trim();
+            if (!store.TryGetEntry(value, out _))
+            {
+                return Results.NotFound(new EmbeddingErrorResponse(
+                    "word_not_found",
+                    $"Field '{field.Name}' contains word '{value}', which is not in the bundled vocabulary."));
+            }
+        }
+
+        return null;
     }
 
     private static readonly JsonSerializerOptions SseJsonOptions = CreateSseJsonOptions();

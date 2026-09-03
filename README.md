@@ -9,6 +9,9 @@ your prompt locally (no model call, no cost), runs it against a real model to su
 usage, then estimates what those tokens would cost in AI Credits across Microsoft's billing
 surfaces.
 
+The interface supports persistent light and dark themes. The first visit follows the operating
+system preference, and the header toggle saves the user's choice locally.
+
 It runs against Azure AI Foundry (cloud) and local runtimes (Foundry Local, LM Studio, Ollama),
 and for any prompt it shows:
 
@@ -43,12 +46,13 @@ and for any prompt it shows:
    differs across vendors/families — OpenAI GPT, Qwen and Llama 3 use byte-level BPE; Google
    Gemini/Gemma use SentencePiece/Unigram; Anthropic and Microsoft MAI tokenizers are not public.
 9. **"How text embeddings work" explainer**: a second header button compares two embedding
-   approaches. The local mode uses GloVe 6B static word embeddings. It shows vector coordinates,
-   vector offsets, cosine similarity, and vector-analogy nearest neighbours across 10,000 words.
-   The live mode calls an Azure `text-embedding-3-small` deployment for four complete input texts.
-   It shows the returned vectors, pairwise cosine similarities, and an experimental vector
-   calculation. An **Accurate terms / Concept analogy** toggle changes the explanatory language.
-   It does not change the source data, formulas, measured values, or model calls.
+   approaches in one interactive workspace. The local mode uses GloVe 6B static word embeddings.
+   It separates relationship similarity from `A - B + C` vector arithmetic, with vector
+   coordinates available as supporting detail. The live mode calls an Azure
+   `text-embedding-3-small` deployment for four complete input texts and separates pairwise
+   similarity from the vector arithmetic experiment. No calculation runs until the user presses
+   its action button. A **Technical terms / Plain language** toggle changes the explanatory
+   language without changing source data, formulas, measured values, or model calls.
 10. **Local model discovery (Foundry Local + LM Studio + Ollama)**: models from a running
    **Foundry Local** daemon, **LM Studio** (`localhost:1234`) or **Ollama** (`localhost:11434`)
    appear in the selector automatically. Discovery fails silently when a runtime isn't running.

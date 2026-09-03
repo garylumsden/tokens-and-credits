@@ -46,6 +46,32 @@ public sealed class EmbeddingAnalogyServiceTests
     }
 
     [Fact]
+    public void CalculateNearestNeighbours_KingMinusManPlusWoman_ReturnsQueenFirst()
+    {
+        var service = new EmbeddingAnalogyService(Store.Value);
+
+        var result = service.CalculateNearestNeighbours("king", "man", "woman");
+
+        Assert.Equal("king - man + woman", result.Expression);
+        Assert.Equal("queen", result.Candidates[0].Word);
+        Assert.Equal(["king", "man", "woman"], result.VectorPreviews.Keys);
+    }
+
+    [Fact]
+    public void CompareRelationships_ReturnsCosineAngleAndAllPreviews()
+    {
+        var service = new EmbeddingAnalogyService(Store.Value);
+
+        var result = service.CompareRelationships("man", "king", "woman", "queen");
+
+        Assert.Equal("king - man", result.Relationship.ReferenceLabel);
+        Assert.Equal("queen - woman", result.Relationship.ComparedLabel);
+        Assert.InRange(result.Relationship.Cosine, -1, 1);
+        Assert.InRange(result.Relationship.AngleDegrees, 0, 180);
+        Assert.Equal(["man", "king", "woman", "queen"], result.VectorPreviews.Keys);
+    }
+
+    [Fact]
     public void Calculate_ThrowsExplicitErrorForMissingWord()
     {
         var service = new EmbeddingAnalogyService(Store.Value);

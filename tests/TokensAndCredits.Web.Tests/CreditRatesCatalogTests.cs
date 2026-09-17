@@ -30,11 +30,11 @@ public sealed class CreditRatesCatalogTests
         {
             "gpt-5-mini", "gpt-5.3-codex", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano",
             "gpt-5.5", "gpt-5.6-luna", "gpt-5.6-sol", "gpt-5.6-terra",
-            "claude-haiku-4.5", "claude-sonnet-4", "claude-sonnet-4.5", "claude-sonnet-4.6",
-            "claude-opus-4.5", "claude-opus-4.6", "claude-opus-4.7", "claude-opus-4.8",
+            "gpt-6-astra", "claude-haiku-4.5", "claude-sonnet-4.6",
+            "claude-opus-4.7", "claude-opus-4.8",
             "claude-opus-5", "claude-sonnet-5", "claude-opus-4.8-fast", "claude-fable-5",
-            "claude-fable-5.1", "gemini-3.1-pro", "gemini-3.5-flash", "gemini-3.6-flash",
-            "gemini-3.7-flash", "raptor-mini", "mai-code-1-flash", "mai-code-1.1-flash",
+            "claude-fable-5.1", "gemini-3.5-flash", "gemini-3.6-flash",
+            "gemini-3.7-flash", "gemini-3.8-flash", "mai-code-1.1-flash",
             "grok-4.5", "grok-4.6", "kimi-k2.7-code", "kimi-k3",
         };
 
@@ -47,14 +47,16 @@ public sealed class CreditRatesCatalogTests
     }
 
     [Fact]
-    public void Credits_EveryModel_HasIdLabelAndNonNegativeRates()
+    public void Credits_EveryModel_HasMetadataAndNonNegativeRates()
     {
         var credits = LoadShippedCredits();
+        var categories = new[] { "Powerful", "Versatile", "Lightweight" };
 
         foreach (var model in credits.GitHub.Models)
         {
             Assert.False(string.IsNullOrWhiteSpace(model.Id));
             Assert.False(string.IsNullOrWhiteSpace(model.Label));
+            Assert.Contains(model.Category, categories);
             Assert.True(model.InputPerMillion > 0, $"{model.Id} input rate should be positive.");
             Assert.True(model.OutputPerMillion > 0, $"{model.Id} output rate should be positive.");
             Assert.True(model.CacheReadPerMillion >= 0);
@@ -111,5 +113,102 @@ public sealed class CreditRatesCatalogTests
         Assert.Equal(0.1m, credits.CopilotStudio.Basic);
         Assert.Equal(1.5m, credits.CopilotStudio.Standard);
         Assert.Equal(10m, credits.CopilotStudio.Premium);
+    }
+
+    [Fact]
+    public void Credits_CopilotStudioModels_MatchPublishedTierMappings()
+    {
+        var credits = LoadShippedCredits();
+        var expected = new Dictionary<string, (string Tier, string Category, string Status)>
+        {
+            ["gpt-4.1-mini"] = ("Basic", "Mini", "GA"),
+            ["gpt-4.1"] = ("Standard", "General", "GA"),
+            ["gpt-5-chat"] = ("Standard", "General", "GA"),
+            ["gpt-5-reasoning"] = ("Premium", "Deep", "GA"),
+            ["gpt-5.3-chat"] = ("Standard", "General", "Experimental"),
+            ["gpt-5.2-reasoning"] = ("Premium", "Deep", "Experimental"),
+            ["claude-sonnet-4.6"] = ("Standard", "General", "Experimental"),
+            ["claude-opus-4.6"] = ("Premium", "Deep", "Experimental"),
+            ["grok-4.1-fast"] = ("Standard", "General", "Experimental"),
+        };
+
+        Assert.Equal("gpt-4.1-mini", credits.CopilotStudio.DefaultId);
+        Assert.Equal(expected.Count, credits.CopilotStudio.Models.Count);
+        Assert.Equal(expected.Keys.Order(), credits.CopilotStudio.Models.Select(model => model.Id).Order());
+
+        foreach (var model in credits.CopilotStudio.Models)
+        {
+            var mapping = expected[model.Id];
+            Assert.False(string.IsNullOrWhiteSpace(model.Label));
+            Assert.Equal(mapping.Tier, model.Tier);
+            Assert.Equal(mapping.Category, model.Category);
+            Assert.Equal(mapping.Status, model.Status);
+        }
+    }
+
+    [Fact]
+    public void Credits_KeyGitHubRates_MatchPublishedSeptember2026Rates()
+    {
+        var credits = LoadShippedCredits();
+
+        AssertModel(
+            credits,
+            "claude-opus-5",
+            input: 500,
+            cacheRead: 50,
+            cacheWrite: 625,
+            output: 2500);
+        AssertModel(
+            credits,
+            "gpt-5.6-sol",
+            input: 400,
+            cacheRead: 40,
+            cacheWrite: 500,
+            output: 2000,
+            longInput: 800,
+            longCacheRead: 80,
+            longCacheWrite: 1000,
+            longOutput: 3000);
+    }
+
+    [Fact]
+    public void Credits_PowerfulCategory_MatchesPublishedModels()
+    {
+        var credits = LoadShippedCredits();
+        var expected = new[]
+        {
+            "gpt-5.3-codex", "gpt-5.5", "gpt-5.6-sol", "gpt-6-astra",
+            "claude-opus-4.7", "claude-opus-4.8", "claude-opus-5",
+            "claude-opus-4.8-fast", "claude-fable-5", "claude-fable-5.1", "kimi-k3",
+        };
+
+        var actual = credits.GitHub.Models
+            .Where(model => model.Category == "Powerful")
+            .Select(model => model.Id);
+
+        Assert.Equal(expected.Order(), actual.Order());
+    }
+
+    private static void AssertModel(
+        CreditRatesOptions credits,
+        string id,
+        decimal input,
+        decimal cacheRead,
+        decimal cacheWrite,
+        decimal output,
+        decimal? longInput = null,
+        decimal? longCacheRead = null,
+        decimal? longCacheWrite = null,
+        decimal? longOutput = null)
+    {
+        var model = Assert.Single(credits.GitHub.Models, model => model.Id == id);
+        Assert.Equal(input, model.InputPerMillion);
+        Assert.Equal(cacheRead, model.CacheReadPerMillion);
+        Assert.Equal(cacheWrite, model.CacheWritePerMillion);
+        Assert.Equal(output, model.OutputPerMillion);
+        Assert.Equal(longInput, model.LongContextInputPerMillion);
+        Assert.Equal(longCacheRead, model.LongContextCacheReadPerMillion);
+        Assert.Equal(longCacheWrite, model.LongContextCacheWritePerMillion);
+        Assert.Equal(longOutput, model.LongContextOutputPerMillion);
     }
 }

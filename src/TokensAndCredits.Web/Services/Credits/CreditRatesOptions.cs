@@ -16,7 +16,7 @@ public sealed class CreditRatesOptions
     /// <summary>Human-readable "rates as of" label shown in the UI (e.g. "June 2026").</summary>
     public string AsOf { get; set; } = "";
 
-    /// <summary>Copilot Studio / Microsoft 365 Copilot per-1,000-token tier rates.</summary>
+    /// <summary>Copilot Studio rates for each whole 1,000-token AI-tool unit.</summary>
     public CopilotStudioRates CopilotStudio { get; set; } = new();
 
     /// <summary>GitHub Copilot per-model billing catalogue used by the billing-model selector.</summary>
@@ -24,19 +24,44 @@ public sealed class CreditRatesOptions
 }
 
 /// <summary>
-/// Copilot Studio "Text and generative AI tools" rates, expressed as credits per 1,000 tokens.
-/// The tier that applies is set by the model the AI tool uses, so all three are surfaced.
+/// Copilot Studio "Text and generative AI tools" rates for each whole 1,000-token unit.
+/// Copilot Studio rounds partial units up. The AI-tool model sets the applicable tier.
 /// </summary>
 public sealed class CopilotStudioRates
 {
-    /// <summary>Basic tier credits per 1,000 tokens.</summary>
+    /// <summary>Basic tier credits per whole 1,000-token unit.</summary>
     public decimal Basic { get; set; } = 0.1m;
 
-    /// <summary>Standard tier credits per 1,000 tokens.</summary>
+    /// <summary>Standard tier credits per whole 1,000-token unit.</summary>
     public decimal Standard { get; set; } = 1.5m;
 
-    /// <summary>Premium tier credits per 1,000 tokens.</summary>
+    /// <summary>Premium tier credits per whole 1,000-token unit.</summary>
     public decimal Premium { get; set; } = 10m;
+
+    /// <summary>Id of the prompt model selected by default.</summary>
+    public string DefaultId { get; set; } = "";
+
+    /// <summary>Copilot Studio prompt models and their billing-tier mappings.</summary>
+    public List<CopilotStudioModelRate> Models { get; set; } = new();
+}
+
+/// <summary>A Copilot Studio prompt model mapped to its published billing tier.</summary>
+public sealed class CopilotStudioModelRate
+{
+    /// <summary>Stable identifier used by the selector and DefaultId.</summary>
+    public string Id { get; set; } = "";
+
+    /// <summary>Friendly label shown in the selector.</summary>
+    public string Label { get; set; } = "";
+
+    /// <summary>Copilot Studio billing tier: Basic, Standard, or Premium.</summary>
+    public string Tier { get; set; } = "";
+
+    /// <summary>Copilot Studio model category: Mini, General, or Deep.</summary>
+    public string Category { get; set; } = "";
+
+    /// <summary>Published availability status, such as GA or Experimental.</summary>
+    public string Status { get; set; } = "";
 }
 
 /// <summary>The GitHub Copilot model catalogue offered by the billing-model selector.</summary>
@@ -60,6 +85,9 @@ public sealed class GitHubModelRate
 
     /// <summary>Friendly label shown in the selector.</summary>
     public string Label { get; set; } = "";
+
+    /// <summary>GitHub pricing category: Powerful, Versatile, or Lightweight.</summary>
+    public string Category { get; set; } = "";
 
     /// <summary>Credits per 1M input (non-cached) tokens.</summary>
     public decimal InputPerMillion { get; set; }

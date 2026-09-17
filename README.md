@@ -418,39 +418,76 @@ After a model call, the same token usage is converted into **AI Credits** (1 cre
 for two Microsoft billing surfaces. The estimate is driven by a **user-selected billing model**,
 *not* the model that produced the reply — so you can price your prompt's tokens against a model
 the app can't even run. The catalog includes current OpenAI, Anthropic, Google, Microsoft, xAI,
-Moonshot AI, and GitHub fine-tuned models. Changing the selector recomputes
-instantly from the last run's usage.
+and Moonshot AI models. Changing the selector recomputes instantly from the last run's usage.
 
 The two surfaces are shown as **separate sections** because they are billed differently, and
 each has its **own overhead-tokens field**:
 
 - **GitHub Copilot** — per-model, four token classes: **input / cache-read / cache-write /
   output** (reasoning is billed at the output rate). Cache **reads** are discounted and cache
-  **writes** cost a premium, but Azure OpenAI and local runtimes report only cache *reads*, so
-  cache-write shows **0** here. Its overhead field adds **input** tokens (system prompt, tool
-  definitions, custom instructions, retrieved context). Models with a published long-context
-  tier switch rates automatically when prompt plus overhead tokens exceed the threshold.
-- **Copilot Studio** — "Text and generative AI tools" billed **per 1,000 tokens** at three tiers
-  (**Basic 0.1 / Standard 1.5 / Premium 10** credits/1k). The tier is set by the model the AI
-  tool uses, so all three are shown. Its overhead field adds to the **total** tokens metered (the
-  agent's own system prompt, instructions and knowledge grounding). The estimate still ignores
-  per-message / agent-action charges and retries, so real usage is typically **higher**; for
-  Microsoft 365 Copilot–licensed employee use, Copilot Studio token costs are **included**.
+  **writes** can cost a premium. Azure OpenAI and local runtimes do not report
+  `cache_creation_input_tokens`, so the cache-write field defaults to **0**. Enter the value from
+  a Copilot per-request log when it is available. The overhead field adds prompt tokens for system
+  instructions, tool definitions, custom instructions, and retrieved context. Models with a
+  published long-context tier switch rates automatically when prompt plus overhead exceeds the
+  threshold. The model selector uses GitHub Copilot's current **Powerful**, **Versatile**, and
+  **Lightweight** categories.
+- **Copilot Studio** — "Text and generative AI tools" billed in whole **1,000-token units** at three tiers
+  (**Basic 0.1 / Standard 1.5 / Premium 10** credits/1k). The prompt-model selector maps each
+  published model to its tier. Copilot Studio rounds the combined input and output up to the next
+  1,000-token unit. For example, 4,200 tokens consume five units. Its overhead field adds to the
+  total before rounding. This is the AI-tool token charge only. Add the applicable feature
+  charges: classic answer 1, generative answer 2, agent action 5, tenant graph grounding 10, agent
+  flow actions 13 per 100 actions, or content processing 8 per page. A reasoning model adds the
+  Premium token charge to its feature charge. Eligible employee-facing use by an authenticated
+  Microsoft 365 Copilot licensed user is zero-rated. Computer-using agents and agent flows started
+  by other triggers are excluded. Bring-your-own-model processing is billed through Foundry.
+  Invoking the tool can still incur an agent-action charge.
 
-Token-class mapping from the model's usage: `input = prompt − cached`, `cache-read = cached`,
-`cache-write = 0`, `output = output + reasoning`.
+  The Copilot Studio selector contains **prompt builder models** for Text and generative AI tools.
+  It does not contain primary agent orchestration models, which use a separate availability list.
+
+Token-class mapping for one request:
+
+```text
+fresh input = prompt + overhead - cache read - cache write
+AIC = (fresh input x input rate
+     + cache read x cache-read rate
+     + cache write x cache-write rate
+     + (output + reasoning) x output rate) / 1,000,000
+```
+
+Do not use an aggregate Chat Debug summary to reconcile an exact Copilot charge. The summary can
+combine calls that resolved to different models. For exact AIC, use each request's
+`copilot_usage.total_nano_aiu`, divide by `1,000,000,000`, then group and sum by resolved model.
+The server also supplies `token_details`, `batch_size`, and `cost_per_batch`, so the log remains
+valid when prices change.
+
+Copilot Studio AI-tool token calculation:
+
+```text
+1K-token units = ceiling((reported total tokens + overhead tokens) / 1,000)
+AI-tool credits = 1K-token units x tier rate
+```
 
 Rates are list prices that change, so they live in the **`Credits`** section of
 `appsettings.json` with an `AsOf` label and are fully editable:
 
 ```jsonc
 "Credits": {
-  "AsOf": "September 2, 2026",
-  "CopilotStudio": { "Basic": 0.1, "Standard": 1.5, "Premium": 10 },
+  "AsOf": "September 17, 2026",
+  "CopilotStudio": {
+    "Basic": 0.1, "Standard": 1.5, "Premium": 10,
+    "DefaultId": "gpt-4.1-mini",
+    "Models": [
+      { "Id": "gpt-4.1-mini", "Label": "GPT-4.1 mini",
+        "Tier": "Basic", "Category": "Mini", "Status": "GA" }
+    ]
+  },
   "GitHub": {
     "DefaultId": "gpt-5.4",
     "Models": [
-      { "Id": "gpt-5.4", "Label": "GPT-5.4",
+      { "Id": "gpt-5.4", "Label": "GPT-5.4", "Category": "Versatile",
         "InputPerMillion": 250, "CacheReadPerMillion": 25,
         "CacheWritePerMillion": 0, "OutputPerMillion": 1500,
         "LongContextThreshold": 272000,
@@ -458,22 +495,32 @@ Rates are list prices that change, so they live in the **`Credits`** section of
         "LongContextCacheReadPerMillion": 50,
         "LongContextCacheWritePerMillion": 0,
         "LongContextOutputPerMillion": 2250 }
-      // Current OpenAI, Anthropic, Google, Microsoft, xAI, Moonshot AI, and GitHub models
+      // Current OpenAI, Anthropic, Google, Microsoft, xAI, and Moonshot AI models
     ]
   }
 }
 ```
 
-**AI Credits documentation (rates as of September 2, 2026):**
+**AI Credits documentation (rates as of September 17, 2026):**
 
 - **GitHub Copilot** — [About billing for GitHub Copilot](https://docs.github.com/en/copilot/concepts/billing/about-billing-for-github-copilot)
   and the per-model [Models and pricing](https://docs.github.com/en/copilot/reference/copilot-billing/models-and-pricing)
   (input / cached / cache-write / output AI Credit rates).
+- **Per-request reconciliation** — Ken Muse's
+  [Decoding Copilot Token Costs Using VS Code](https://www.kenmuse.com/blog/decoding-copilot-token-costs-using-vs-code/)
+  explains `cache_creation_input_tokens`, `token_details`, and `total_nano_aiu`.
+- **Usage reports** — GitHub's
+  [per-model token breakdown announcement](https://github.blog/changelog/2026-08-11-per-model-token-breakdown-in-the-usage-report/)
+  covers input, output, cache-read, cache-write, and AIC columns.
 - **Microsoft Copilot Studio** — [Copilot Credits billing rates](https://learn.microsoft.com/microsoft-copilot-studio/requirements-messages-management#copilot-credits-billing-rates)
   (per-1,000-token Basic / Standard / Premium tiers and non-token charges).
+- **Copilot Studio token units** — [Licensing and Copilot Credits](https://learn.microsoft.com/ai-builder/message-management)
+  documents the whole-unit rounding rule and the 4,200-token example.
+- **Copilot Studio model tiers** — [Change the model version and settings](https://learn.microsoft.com/microsoft-copilot-studio/prompt-model-settings)
+  maps prompt models to Basic, Standard, and Premium rates.
 
-The configured GPT-5.6 Sol rates include GitHub's promotion through September 3, 2026.
-Gemini 3.6 Flash and Gemini 3.7 Flash use promotional rates through December 31, 2026.
+Gemini 3.6 Flash, Gemini 3.7 Flash, and Gemini 3.8 Flash use promotional rates through
+December 31, 2026.
 Refresh `Credits` when GitHub changes or ends a promotional rate.
 
 ---

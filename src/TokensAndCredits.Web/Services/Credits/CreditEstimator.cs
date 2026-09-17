@@ -9,36 +9,49 @@ namespace TokensAndCredits.Web.Services.Credits;
 /// <remarks>
 /// The live UI computes the same maths in JavaScript so changing the billing model recomputes
 /// instantly without a re-run; this type exists to keep the rate model honest and unit-tested.
-/// Token-class mapping: input = Prompt − Cached, cache-read = Cached, cache-write = 0 (Azure
-/// OpenAI / local report cache reads only), output = Output + Reasoning (reasoning billed as
-/// output).
+/// Token-class mapping: fresh input = Prompt + additional prompt − cache read − cache write;
+/// output = Output + Reasoning (reasoning is billed as output). Cache-write tokens are supplied
+/// separately because Azure OpenAI and local usage responses do not report them.
 /// </remarks>
 public static class CreditEstimator
 {
     private const decimal PerMillion = 1_000_000m;
     private const decimal PerThousand = 1_000m;
 
-    /// <summary>Estimates GitHub Copilot credits for the supplied usage and model rates.</summary>
+    /// <summary>Estimates GitHub Copilot credits for one request.</summary>
     /// <param name="usage">Token usage from the run.</param>
     /// <param name="model">Per-million credit rates for the selected billing model.</param>
+    /// <param name="additionalPromptTokens">Prompt tokens added by the Copilot agent.</param>
+    /// <param name="cacheWriteTokens">Prompt tokens written to the provider cache.</param>
     /// <returns>The per-class and total GitHub credit estimate.</returns>
-    public static GitHubCreditEstimate EstimateGitHub(UsageBreakdown usage, GitHubModelRate model)
+    public static GitHubCreditEstimate EstimateGitHub(
+        UsageBreakdown usage,
+        GitHubModelRate model,
+        long additionalPromptTokens = 0,
+        long cacheWriteTokens = 0)
     {
         ArgumentNullException.ThrowIfNull(usage);
         ArgumentNullException.ThrowIfNull(model);
 
-        var cached = usage.Cached ?? 0;
-        var inputNonCached = Math.Max(0, usage.Prompt - cached);
-        var output = usage.Output + (usage.Reasoning ?? 0);
-        var useLongContext = model.LongContextThreshold is long threshold && usage.Prompt > threshold;
+        var prompt = Math.Max(0L, usage.Prompt);
+        var additionalPrompt = Math.Max(0L, additionalPromptTokens);
+        var billedPrompt = prompt + additionalPrompt;
+        var cacheReadTokens = Math.Min(Math.Max(0L, usage.Cached ?? 0), billedPrompt);
+        var billedCacheWriteTokens = Math.Min(
+            Math.Max(0L, cacheWriteTokens),
+            billedPrompt - cacheReadTokens);
+        var freshInputTokens = billedPrompt - cacheReadTokens - billedCacheWriteTokens;
+        var outputTokens = Math.Max(0L, (long)usage.Output + (usage.Reasoning ?? 0));
+        var useLongContext = model.LongContextThreshold is long threshold && billedPrompt > threshold;
         var inputRate = useLongContext ? model.LongContextInputPerMillion ?? model.InputPerMillion : model.InputPerMillion;
         var cacheReadRate = useLongContext ? model.LongContextCacheReadPerMillion ?? model.CacheReadPerMillion : model.CacheReadPerMillion;
+        var cacheWriteRate = useLongContext ? model.LongContextCacheWritePerMillion ?? model.CacheWritePerMillion : model.CacheWritePerMillion;
         var outputRate = useLongContext ? model.LongContextOutputPerMillion ?? model.OutputPerMillion : model.OutputPerMillion;
 
-        var input = inputNonCached / PerMillion * inputRate;
-        var cacheRead = cached / PerMillion * cacheReadRate;
-        var cacheWrite = 0m; // Azure OpenAI / local report cache reads only.
-        var outputCost = output / PerMillion * outputRate;
+        var input = freshInputTokens / PerMillion * inputRate;
+        var cacheRead = cacheReadTokens / PerMillion * cacheReadRate;
+        var cacheWrite = billedCacheWriteTokens / PerMillion * cacheWriteRate;
+        var outputCost = outputTokens / PerMillion * outputRate;
 
         return new GitHubCreditEstimate(
             model.Id,
@@ -50,16 +63,21 @@ public static class CreditEstimator
             input + cacheRead + cacheWrite + outputCost);
     }
 
-    /// <summary>Estimates Copilot Studio credits across all three tiers for the supplied usage.</summary>
+    /// <summary>Estimates the Copilot Studio AI-tool token charge across all three tiers.</summary>
     /// <param name="usage">Token usage from the run.</param>
     /// <param name="rates">Per-1,000-token tier rates.</param>
+    /// <param name="additionalTokens">Unreported tokens added by the Copilot Studio prompt.</param>
     /// <returns>The Basic/Standard/Premium credit estimates.</returns>
-    public static CopilotStudioEstimate EstimateCopilotStudio(UsageBreakdown usage, CopilotStudioRates rates)
+    public static CopilotStudioEstimate EstimateCopilotStudio(
+        UsageBreakdown usage,
+        CopilotStudioRates rates,
+        long additionalTokens = 0)
     {
         ArgumentNullException.ThrowIfNull(usage);
         ArgumentNullException.ThrowIfNull(rates);
 
-        var thousands = usage.Total / PerThousand;
+        var billedTokens = Math.Max(0L, usage.Total) + Math.Max(0L, additionalTokens);
+        var thousands = Math.Ceiling(billedTokens / PerThousand);
         return new CopilotStudioEstimate(
             thousands * rates.Basic,
             thousands * rates.Standard,
@@ -70,9 +88,9 @@ public static class CreditEstimator
 /// <summary>A GitHub Copilot credit estimate broken down by token class.</summary>
 /// <param name="ModelId">Selected billing-model id.</param>
 /// <param name="ModelLabel">Selected billing-model label.</param>
-/// <param name="Input">Credits for non-cached input tokens.</param>
+/// <param name="Input">Credits for fresh input tokens.</param>
 /// <param name="CacheRead">Credits for cache-read tokens.</param>
-/// <param name="CacheWrite">Credits for cache-write tokens (always 0 here).</param>
+/// <param name="CacheWrite">Credits for cache-write tokens.</param>
 /// <param name="Output">Credits for output tokens (incl. reasoning).</param>
 /// <param name="Total">Sum of all classes.</param>
 public sealed record GitHubCreditEstimate(

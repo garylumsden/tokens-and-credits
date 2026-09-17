@@ -5,11 +5,11 @@ namespace TokensAndCredits.Web.Tests;
 
 public sealed class CreditEstimatorTests
 {
-    // Claude Opus 4.8 rates (credits per 1M tokens): input 500, cache-read 50, cache-write 625, output 2500.
+    // Claude Opus 5 rates (credits per 1M tokens): input 500, cache-read 50, cache-write 625, output 2500.
     private static readonly GitHubModelRate Opus = new()
     {
-        Id = "claude-opus-4.8",
-        Label = "Claude Opus 4.8",
+        Id = "claude-opus-5",
+        Label = "Claude Opus 5",
         InputPerMillion = 500,
         CacheReadPerMillion = 50,
         CacheWritePerMillion = 625,
@@ -19,21 +19,21 @@ public sealed class CreditEstimatorTests
     [Fact]
     public void EstimateGitHub_MapsTokenClasses_AndReasoningBilledAsOutput()
     {
-        // Prompt 1,000,000 incl. 200,000 cached; output 1,000,000 visible + 500,000 reasoning.
+        // Prompt contains 500,000 fresh, 200,000 cache-read, and 300,000 cache-write tokens.
         var usage = new UsageBreakdown(Prompt: 1_000_000, Output: 1_000_000, Reasoning: 500_000, Cached: 200_000, Total: 2_500_000);
 
-        var result = CreditEstimator.EstimateGitHub(usage, Opus);
+        var result = CreditEstimator.EstimateGitHub(usage, Opus, cacheWriteTokens: 300_000);
 
-        // input (non-cached) = 800,000 → 0.8 * 500 = 400
-        Assert.Equal(400m, result.Input);
+        // fresh input = 1,000,000 - 200,000 - 300,000 = 500,000
+        Assert.Equal(250m, result.Input);
         // cache-read = 200,000 → 0.2 * 50 = 10
         Assert.Equal(10m, result.CacheRead);
-        // cache-write always 0 (Azure/local report reads only)
-        Assert.Equal(0m, result.CacheWrite);
+        // cache-write = 300,000 → 0.3 * 625 = 187.5
+        Assert.Equal(187.5m, result.CacheWrite);
         // output = 1,500,000 (incl. reasoning) → 1.5 * 2500 = 3750
         Assert.Equal(3750m, result.Output);
         // total = sum of classes
-        Assert.Equal(4160m, result.Total);
+        Assert.Equal(4197.5m, result.Total);
         Assert.Equal(result.Input + result.CacheRead + result.CacheWrite + result.Output, result.Total);
     }
 
@@ -50,17 +50,29 @@ public sealed class CreditEstimatorTests
     }
 
     [Fact]
-    public void EstimateCopilotStudio_AppliesTierRatePer1000Tokens_ToTotal()
+    public void EstimateCopilotStudio_RoundsUpToWhole1000TokenUnits()
     {
-        var usage = new UsageBreakdown(Prompt: 0, Output: 0, Reasoning: null, Cached: null, Total: 10_000);
+        var usage = new UsageBreakdown(Prompt: 0, Output: 0, Reasoning: null, Cached: null, Total: 10_001);
         var rates = new CopilotStudioRates { Basic = 0.1m, Standard = 1.5m, Premium = 10m };
 
         var result = CreditEstimator.EstimateCopilotStudio(usage, rates);
 
-        // 10,000 / 1000 = 10 thousands
-        Assert.Equal(1m, result.Basic);
-        Assert.Equal(15m, result.Standard);
-        Assert.Equal(100m, result.Premium);
+        Assert.Equal(1.1m, result.Basic);
+        Assert.Equal(16.5m, result.Standard);
+        Assert.Equal(110m, result.Premium);
+    }
+
+    [Fact]
+    public void EstimateCopilotStudio_MatchesPublished4200TokenExample()
+    {
+        var usage = new UsageBreakdown(Prompt: 4_000, Output: 200, Reasoning: null, Cached: null, Total: 4_200);
+        var rates = new CopilotStudioRates { Basic = 0.1m, Standard = 1.5m, Premium = 10m };
+
+        var result = CreditEstimator.EstimateCopilotStudio(usage, rates);
+
+        Assert.Equal(0.5m, result.Basic);
+        Assert.Equal(7.5m, result.Standard);
+        Assert.Equal(50m, result.Premium);
     }
 
     [Fact]
@@ -107,5 +119,25 @@ public sealed class CreditEstimatorTests
         Assert.Equal(40.0002m, result.Input);
         Assert.Equal(300m, result.Output);
         Assert.Equal(340.0002m, result.Total);
+    }
+
+    [Fact]
+    public void EstimateGitHub_OpusSummaryTotals_DefineExpectedFloorAndCeiling()
+    {
+        var usage = new UsageBreakdown(
+            Prompt: 2_870_278,
+            Output: 57_891,
+            Reasoning: null,
+            Cached: 2_166_224,
+            Total: 2_928_169);
+
+        var allFresh = CreditEstimator.EstimateGitHub(usage, Opus);
+        var allCacheWrite = CreditEstimator.EstimateGitHub(
+            usage,
+            Opus,
+            cacheWriteTokens: 704_054);
+
+        Assert.Equal(605.0657m, allFresh.Total);
+        Assert.Equal(693.07245m, allCacheWrite.Total);
     }
 }

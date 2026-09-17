@@ -711,7 +711,16 @@ public static class TokenEndpoints
                 {
                     basic = c.CopilotStudio.Basic,
                     standard = c.CopilotStudio.Standard,
-                    premium = c.CopilotStudio.Premium
+                    premium = c.CopilotStudio.Premium,
+                    defaultId = c.CopilotStudio.DefaultId,
+                    models = c.CopilotStudio.Models.Select(m => new
+                    {
+                        id = m.Id,
+                        label = m.Label,
+                        tier = m.Tier,
+                        category = m.Category,
+                        status = m.Status
+                    })
                 },
                 github = new
                 {
@@ -720,6 +729,7 @@ public static class TokenEndpoints
                     {
                         id = m.Id,
                         label = m.Label,
+                        category = m.Category,
                         input = m.InputPerMillion,
                         cacheRead = m.CacheReadPerMillion,
                         cacheWrite = m.CacheWritePerMillion,

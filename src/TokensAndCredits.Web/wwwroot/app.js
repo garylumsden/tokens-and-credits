@@ -4,6 +4,7 @@ const state = {
     models: new Map(),
     creditRates: null,
     billingModelId: null,
+    studioModelId: null,
     lastUsage: null,
     embeddingManifest: null,
     embeddingProviders: null,
@@ -631,49 +632,73 @@ function renderUsage(container, usage, logprobStats) {
 // ---- AI Credits ------------------------------------------------------------------------------
 // Pure credit maths, mirrored by the C# CreditEstimator. GitHub and Copilot Studio are billed
 // very differently and take independent overhead inputs (they wrap prompts differently):
-//   GitHub: input = (prompt − cached) + githubOverhead, cache-read = cached, cache-write = 0
-//           (Azure/local report reads only), output = output + reasoning (billed as output).
-//   Copilot Studio: per-1,000-token tiers applied to (total + studioOverhead).
-function computeCredits(usage, model, studioRates, githubOverhead = 0, studioOverhead = 0) {
-    const prompt = Number(usage.prompt) || 0;
-    const cached = Number(usage.cached) || 0;
-    const output = (Number(usage.output) || 0) + (Number(usage.reasoning) || 0);
+//   GitHub: fresh input = prompt + overhead − cache read − cache write;
+//           output = output + reasoning (billed as output).
+//   Copilot Studio: tiers applied to whole 1,000-token units, rounded up.
+function computeCredits(
+    usage,
+    model,
+    studioRates,
+    githubOverhead = 0,
+    studioOverhead = 0,
+    githubCacheWrite = 0,
+) {
+    const prompt = Math.max(0, Number(usage.prompt) || 0);
+    const reportedCacheRead = Math.max(0, Number(usage.cached) || 0);
+    const outputTokens = Math.max(
+        0,
+        (Number(usage.output) || 0) + (Number(usage.reasoning) || 0),
+    );
     const ghOverhead = Math.max(0, Number(githubOverhead) || 0);
     const csOverhead = Math.max(0, Number(studioOverhead) || 0);
-    const inputNonCached = Math.max(0, prompt - cached) + ghOverhead;
     const billedInput = prompt + ghOverhead;
-    const studioTotal = (Number(usage.total) || 0) + csOverhead;
+    const cacheReadTokens = Math.min(reportedCacheRead, billedInput);
+    const cacheWriteTokens = Math.min(
+        Math.max(0, Number(githubCacheWrite) || 0),
+        billedInput - cacheReadTokens,
+    );
+    const freshInputTokens = billedInput - cacheReadTokens - cacheWriteTokens;
+    const studioTotal = Math.max(0, Number(usage.total) || 0) + csOverhead;
+    const studioUnits = Math.ceil(studioTotal / 1000);
     const longContextThreshold = Number(model.longContextThreshold);
     const useLongContext = Number.isFinite(longContextThreshold)
         && longContextThreshold > 0
         && billedInput > longContextThreshold;
     const inputRate = useLongContext ? Number(model.longContextInput) : Number(model.input);
     const cacheReadRate = useLongContext ? Number(model.longContextCacheRead) : Number(model.cacheRead);
+    const cacheWriteRate = useLongContext ? Number(model.longContextCacheWrite) : Number(model.cacheWrite);
     const outputRate = useLongContext ? Number(model.longContextOutput) : Number(model.output);
 
-    const githubInput = (inputNonCached / 1_000_000) * inputRate;
-    const githubCacheRead = (cached / 1_000_000) * cacheReadRate;
-    const githubCacheWrite = 0; // Azure OpenAI / local report cache reads only.
-    const githubOutput = (output / 1_000_000) * outputRate;
-
-    const thousands = studioTotal / 1000;
+    const githubInput = (freshInputTokens / 1_000_000) * inputRate;
+    const githubCacheRead = (cacheReadTokens / 1_000_000) * cacheReadRate;
+    const githubCacheWriteCost = (cacheWriteTokens / 1_000_000) * cacheWriteRate;
+    const githubOutput = (outputTokens / 1_000_000) * outputRate;
 
     return {
         github: {
             modelId: model.id,
             modelLabel: model.label,
             tier: useLongContext ? "Long context" : "Default",
+            inputTokens: freshInputTokens,
+            cacheReadTokens,
+            cacheWriteTokens,
+            outputTokens,
+            inputRate,
+            cacheReadRate,
+            cacheWriteRate,
+            outputRate,
             input: githubInput,
             cacheRead: githubCacheRead,
-            cacheWrite: githubCacheWrite,
+            cacheWrite: githubCacheWriteCost,
             output: githubOutput,
-            total: githubInput + githubCacheRead + githubCacheWrite + githubOutput,
+            total: githubInput + githubCacheRead + githubCacheWriteCost + githubOutput,
         },
         studio: {
             total: studioTotal,
-            basic: thousands * Number(studioRates.basic),
-            standard: thousands * Number(studioRates.standard),
-            premium: thousands * Number(studioRates.premium),
+            units: studioUnits,
+            basic: studioUnits * Number(studioRates.basic),
+            standard: studioUnits * Number(studioRates.standard),
+            premium: studioUnits * Number(studioRates.premium),
         },
     };
 }
@@ -684,9 +709,6 @@ function formatCredits(value) {
     }
     if (value === 0) {
         return "0";
-    }
-    if (value >= 100) {
-        return value.toFixed(0);
     }
     if (value >= 1) {
         return value.toFixed(2);
@@ -705,59 +727,85 @@ function selectedBillingModel() {
         || null;
 }
 
+function selectedStudioModel() {
+    const rates = state.creditRates;
+    if (!rates || !rates.copilotStudio || !Array.isArray(rates.copilotStudio.models)) {
+        return null;
+    }
+    return rates.copilotStudio.models.find((model) => model.id === state.studioModelId)
+        || rates.copilotStudio.models[0]
+        || null;
+}
+
 function renderCredits() {
     const section = el("creditsSection");
     const usage = state.lastUsage;
     const rates = state.creditRates;
     const model = selectedBillingModel();
+    const studioModel = selectedStudioModel();
 
-    if (!usage || !rates || !model) {
+    if (!usage || !rates || !model || !studioModel) {
         section.classList.add("hidden");
         return;
     }
     section.classList.remove("hidden");
 
     const githubOverhead = Math.max(0, Number(el("githubOverhead").value) || 0);
+    const githubCacheWrite = Math.max(0, Number(el("githubCacheWrite").value) || 0);
     const studioOverhead = Math.max(0, Number(el("studioOverhead").value) || 0);
-    const result = computeCredits(usage, model, rates.copilotStudio, githubOverhead, studioOverhead);
+    const result = computeCredits(
+        usage,
+        model,
+        rates.copilotStudio,
+        githubOverhead,
+        studioOverhead,
+        githubCacheWrite,
+    );
     const g = result.github;
 
     // ---- GitHub Copilot section ----
     const githubHelp = [
-        `Input (non-cached, +${githubOverhead} overhead): ${formatCredits(g.input)}`,
-        `Cache read: ${formatCredits(g.cacheRead)}`,
-        `Cache write: ${formatCredits(g.cacheWrite)} (Azure/local report cache reads only)`,
-        `Output (incl. reasoning): ${formatCredits(g.output)}`,
+        `Fresh input: ${g.inputTokens.toLocaleString()} \u00D7 ${g.inputRate} / 1M = ${formatCredits(g.input)} AIC`,
+        `Cache read: ${g.cacheReadTokens.toLocaleString()} \u00D7 ${g.cacheReadRate} / 1M = ${formatCredits(g.cacheRead)} AIC`,
+        `Cache write: ${g.cacheWriteTokens.toLocaleString()} \u00D7 ${g.cacheWriteRate} / 1M = ${formatCredits(g.cacheWrite)} AIC`,
+        `Output (incl. reasoning): ${g.outputTokens.toLocaleString()} \u00D7 ${g.outputRate} / 1M = ${formatCredits(g.output)} AIC`,
     ].join("\n");
     el("githubCreditCards").replaceChildren(
         usageCard(`${model.label} (${g.tier})`, formatCredits(g.total), true, githubHelp),
     );
     setRichText(
         el("githubCreditsNote"),
-        "Priced against the selected **billing model** \u2014 its own input / cache-read / "
-        + "cache-write / output rate (reasoning billed as output; cache **reads** discounted, cache "
-        + "**writes** a premium, but Azure OpenAI and local runtimes report only reads, so "
-        + "cache-write is 0). Overhead adds **input** tokens (system prompt, tool definitions, "
-        + "custom instructions, retrieved context). Models with long-context pricing switch tiers "
-        + "automatically when measured input plus overhead exceeds the published threshold.",
+        "Fresh input is **prompt + overhead \u2212 cache read \u2212 cache write**. Azure OpenAI "
+        + "and local usage do not report `cache_creation_input_tokens`, so cache-write defaults "
+        + "to 0 unless you enter it. This is a **single-call estimate**. A Copilot summary can "
+        + "combine calls from different models. For exact reconciliation, sum each request's "
+        + "`copilot_usage.total_nano_aiu`, divide by 1 billion, and group by resolved model.",
     );
 
     // ---- Copilot Studio section ----
-    const studioHelp = (tier) =>
-        `${tier} tier: ${formatCredits(result.studio.total / 1000)} \u00D7 1k-token rate. `
-        + "Copilot Studio bills per 1,000 tokens; the tier is set by the model the AI tool uses.";
+    const studioTierKey = studioModel.tier.toLowerCase();
+    const studioRate = Number(rates.copilotStudio[studioTierKey]);
+    const studioCredits = result.studio[studioTierKey];
+    const studioHelp = `${result.studio.total.toLocaleString()} tokens round up to `
+        + `${result.studio.units.toLocaleString()} \u00D7 1K-token units \u00D7 `
+        + `${studioRate} ${studioModel.tier} rate.`;
     el("studioCreditCards").replaceChildren(
-        usageCard("Basic", formatCredits(result.studio.basic), false, studioHelp("Basic")),
-        usageCard("Standard", formatCredits(result.studio.standard), false, studioHelp("Standard")),
-        usageCard("Premium", formatCredits(result.studio.premium), false, studioHelp("Premium")),
+        usageCard(
+            `${studioModel.label} (${studioModel.tier})`,
+            formatCredits(studioCredits),
+            true,
+            studioHelp,
+        ),
     );
     setRichText(
         el("studioCreditsNote"),
-        "Billed **per 1,000 tokens** of the total; the **Basic / Standard / Premium** tier is set "
-        + "by the model the AI tool uses. Overhead adds to the **total** (the agent's own system "
-        + "prompt, instructions and knowledge grounding). Ignores per-message and agent-action "
-        + "charges, so real usage may be **higher**; for Microsoft 365 Copilot\u2013licensed "
-        + "employee use, these token costs are **included**.",
+        "This is the **AI-tool token charge only**. Copilot Studio rounds input plus output up "
+        + "to whole **1,000-token units**. The model sets the **Basic / Standard / Premium** rate. "
+        + "Add core feature charges separately: classic answer 1, generative answer 2, agent "
+        + "action 5, or tenant graph grounding 10 credits. Reasoning models add the Premium "
+        + "token charge to the feature charge. Eligible employee-facing use by authenticated "
+        + "Microsoft 365 Copilot users is zero-rated. Computer-using agents and agent flows "
+        + "started by other triggers are excluded.",
     );
 
     setRichText(
@@ -772,11 +820,23 @@ function renderCredits() {
 function populateBillingModels(rates) {
     const select = el("billingModel");
     select.replaceChildren();
-    rates.github.models.forEach((m) => {
-        const option = document.createElement("option");
-        option.value = m.id;
-        option.textContent = m.label;
-        select.appendChild(option);
+    ["Powerful", "Versatile", "Lightweight"].forEach((category) => {
+        const group = {
+            label: category,
+            models: rates.github.models.filter((model) => model.category === category),
+        };
+        if (!group.models.length) {
+            return;
+        }
+        const options = document.createElement("optgroup");
+        options.label = group.label;
+        group.models.forEach((model) => {
+            const option = document.createElement("option");
+            option.value = model.id;
+            option.textContent = model.label;
+            options.appendChild(option);
+        });
+        select.appendChild(options);
     });
     const initial = rates.github.models.some((m) => m.id === rates.github.defaultId)
         ? rates.github.defaultId
@@ -788,7 +848,8 @@ function populateBillingModels(rates) {
             "Billing model",
             "Prices your prompt's actual tokens against this GitHub Copilot model's rates, even if "
             + "the app can't run it. Changing it recomputes instantly from the last run's usage \u2014 "
-            + "no new model call.",
+            + "no new model call. Models use GitHub Copilot's Powerful, Versatile, and "
+            + "Lightweight categories.",
         ),
     );
     el("githubOverheadHelp").replaceChildren(
@@ -797,6 +858,48 @@ function populateBillingModels(rates) {
             "Extra input tokens a real Copilot agent adds that this app doesn't measure \u2014 system "
             + "prompt, tool/function definitions, custom instructions, retrieved context. Added to "
             + "the GitHub input class before pricing. Enter e.g. 10000.",
+        ),
+    );
+    el("githubCacheWriteHelp").replaceChildren(
+        createHelpBadge(
+            "Cache-write tokens (GitHub Copilot)",
+            "Enter prompt_tokens_details.cache_creation_input_tokens from one Copilot request. "
+            + "Prompt tokens already include cache reads and cache writes, so both are subtracted "
+            + "before the fresh-input rate is applied.",
+        ),
+    );
+    const studioSelect = el("studioBillingModel");
+    studioSelect.replaceChildren();
+    ["Basic", "Standard", "Premium"].forEach((tier) => {
+        const models = rates.copilotStudio.models.filter((model) => model.tier === tier);
+        if (!models.length) {
+            return;
+        }
+        const options = document.createElement("optgroup");
+        options.label = `${tier} rate`;
+        models.forEach((model) => {
+            const option = document.createElement("option");
+            option.value = model.id;
+            option.textContent = model.status === "GA"
+                ? model.label
+                : `${model.label} (${model.status})`;
+            options.appendChild(option);
+        });
+        studioSelect.appendChild(options);
+    });
+    const initialStudio = rates.copilotStudio.models.some(
+        (model) => model.id === rates.copilotStudio.defaultId,
+    )
+        ? rates.copilotStudio.defaultId
+        : (rates.copilotStudio.models[0] && rates.copilotStudio.models[0].id) || "";
+    state.studioModelId = initialStudio;
+    studioSelect.value = initialStudio;
+    el("studioBillingModelHelp").replaceChildren(
+        createHelpBadge(
+            "Copilot Studio prompt model",
+            "Maps each published prompt model to its Basic, Standard, or Premium Copilot Credit "
+            + "rate. This list applies to Text and generative AI tools, not the agent's primary "
+            + "orchestration model. Experimental models and regional availability can vary.",
         ),
     );
     el("studioOverheadHelp").replaceChildren(
@@ -816,7 +919,13 @@ async function loadCreditRates() {
             return;
         }
         const rates = await response.json();
-        if (!rates || !rates.github || !Array.isArray(rates.github.models) || !rates.github.models.length) {
+        if (!rates
+            || !rates.github
+            || !Array.isArray(rates.github.models)
+            || !rates.github.models.length
+            || !rates.copilotStudio
+            || !Array.isArray(rates.copilotStudio.models)
+            || !rates.copilotStudio.models.length) {
             return;
         }
         state.creditRates = rates;
@@ -3862,7 +3971,12 @@ async function init() {
         state.billingModelId = el("billingModel").value;
         renderCredits();
     });
+    el("studioBillingModel").addEventListener("change", () => {
+        state.studioModelId = el("studioBillingModel").value;
+        renderCredits();
+    });
     el("githubOverhead").addEventListener("input", renderCredits);
+    el("githubCacheWrite").addEventListener("input", renderCredits);
     el("studioOverhead").addEventListener("input", renderCredits);
     wireExplainer();
     wireEmbeddingExplainer();

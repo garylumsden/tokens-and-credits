@@ -167,12 +167,22 @@
                                 <input id="githubOverhead" type="number" min="0" step="1000" value="0" placeholder="e.g. 10000" />
                                 <span id="githubOverheadHelp"></span>
                             </div>
+                            <div class="billing-model-row">
+                                <label for="githubCacheWrite">Cache-write tokens</label>
+                                <input id="githubCacheWrite" type="number" min="0" step="1" value="0" placeholder="e.g. 731" />
+                                <span id="githubCacheWriteHelp"></span>
+                            </div>
                             <div id="githubCreditCards" class="usage-cards"></div>
                             <p id="githubCreditsNote" class="meta muted"></p>
                         </div>
 
                         <div class="credits-subsection">
                             <h3 class="credits-subhead">Copilot Studio</h3>
+                            <div class="billing-model-row">
+                                <label for="studioBillingModel">Prompt model</label>
+                                <select id="studioBillingModel"></select>
+                                <span id="studioBillingModelHelp"></span>
+                            </div>
                             <div class="billing-model-row">
                                 <label for="studioOverhead">Overhead tokens</label>
                                 <input id="studioOverhead" type="number" min="0" step="1000" value="0" placeholder="e.g. 10000" />
@@ -290,6 +300,6 @@
 
     <script src="vendor/katex/katex.min.js?v=0.18.1"></script>
     <script src="vendor/katex/contrib/auto-render.min.js?v=0.18.1"></script>
-    <script src="app.js?v=image-tokens-1"></script>
+    <script src="app.js?v=credit-calcs-3"></script>
 </body>
 </html>

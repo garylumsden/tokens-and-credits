@@ -11,6 +11,10 @@ param location string
 @description('Object id of the signed-in user/principal to grant data-plane access. azd injects this.')
 param principalId string
 
+@minLength(1)
+@description('Stable generation value used to change Foundry names after a destructive teardown.')
+param foundryResourceGeneration string = 'initial'
+
 @description('Principal type for the role assignment (User for azd up; ServicePrincipal in CI).')
 @allowed(['User', 'ServicePrincipal'])
 param principalType string = 'User'
@@ -47,7 +51,7 @@ param deployments array = [
   }
 ]
 
-var resourceToken = toLower(uniqueString(subscription().id, environmentName, location))
+var resourceToken = toLower(uniqueString(subscription().id, environmentName, location, foundryResourceGeneration))
 var tags = { 'azd-env-name': environmentName }
 
 resource rg 'Microsoft.Resources/resourceGroups@2024-03-01' = {

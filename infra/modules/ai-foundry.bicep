@@ -49,25 +49,30 @@ resource project 'Microsoft.CognitiveServices/accounts/projects@2025-04-01-previ
     displayName: projectName
     description: 'Tokens & Credits demo project.'
   }
+  dependsOn: [
+    deployment
+  ]
 }
 
 // Cognitive Services creates deployments serially, so batch size 1.
 @batchSize(1)
-resource deployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = [for d in deployments: {
-  parent: account
-  name: d.name
-  sku: {
-    name: d.sku.name
-    capacity: d.sku.capacity
-  }
-  properties: {
-    model: {
-      format: d.model.format
-      name: d.model.name
-      version: d.model.version
+resource deployment 'Microsoft.CognitiveServices/accounts/deployments@2024-10-01' = [
+  for d in deployments: {
+    parent: account
+    name: d.name
+    sku: {
+      name: d.sku.name
+      capacity: d.sku.capacity
+    }
+    properties: {
+      model: {
+        format: d.model.format
+        name: d.model.name
+        version: d.model.version
+      }
     }
   }
-}]
+]
 
 output accountName string = account.name
 output projectName string = project.name
